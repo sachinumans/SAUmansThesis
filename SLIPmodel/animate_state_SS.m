@@ -30,7 +30,7 @@ HR = bod_bo - [0; 0.5*Wi; 0];
 
 Btorso = [bod_t, bod_bo, bod_f, bod_ba, HL, HR];
 
-if LR
+if LR == 2
     legidx = 6;
 else
     legidx = 5;
@@ -63,7 +63,7 @@ for k=1:size(x,1)
 
     axis([-2 2 -1 1 -0.5 2]);
 %     axis("equal")
-    title(strjoin(["Realtime: x" string((T(k+1)-T(k))*fps)]))
+    text(-2, -1, 0.1, strjoin(["Realtime: x" string((T(k+1)-T(k))*fps)]))
     hold off; drawnow
     M(k) = getframe;
 end

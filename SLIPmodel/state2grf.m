@@ -31,10 +31,14 @@ nC =   x(1:3);   % Centre of mass position in the world frame N
 ndC =  x(4:6);   % CoM velocity in the world frame N
 BqN =  x(7:10);  % Quaternion rotation from N to B
 dBqN = x(11:14); % Quaternion rotation velocity from N to B
-SqN =  x(15:18); % Quaternion rotation from N to S
+% SqN =  x(15:18); % Quaternion rotation from N to S
 
 %% Sagittal VPP point
-NqS = quatInv(SqN);
+qBqN = quaternion(BqN');
+rotAngs = euler(qBqN,'ZXY','frame');
+qSqN = quaternion([rotAngs(1) 0 0], 'euler', 'ZXY','frame');
+NqS = compact(quaternion(quatInv(compact(qSqN))'))';
+
 sSx = [1; 0; 0]; % Sx in S
 nSx = quatRot(NqS,sSx); % Sx in N
 
@@ -90,12 +94,19 @@ if LR == 0
     ndLegLengthR = dot(ndLegR, nrsR);
     
     % Magnitude of GRFs
-    mag_grfL = 1/dot(nr_grfL, nrsL)*(k*max(l0 - norm(nHL - nFL), 0) - b*ndLegLengthL);
-    mag_grfR = 1/dot(nr_grfR, nrsR)*(k*max(l0 - norm(nHR - nFR), 0) - b*ndLegLengthR);
+    mag_grfL = 1/dot(nr_grfL, nrsL)*(k*(l0 - norm(nHL - nFL)) - b*ndLegLengthL);
+    mag_grfR = 1/dot(nr_grfR, nrsR)*(k*(l0 - norm(nHR - nFR)) - b*ndLegLengthR);
     
     % Ground reaction forces
     nGRFL = nr_grfL*mag_grfL;
     nGRFR = nr_grfR*mag_grfR;
+    if nGRFL(3) < 0
+        nGRFL = zeros(3,1);
+    end
+    if nGRFR(3) < 0
+        nGRFR = zeros(3,1);
+    end
+    
     nGRF = [nGRFL, nGRFR];
 elseif LR == 1
     % Sagittal VPP plane
@@ -118,10 +129,13 @@ elseif LR == 1
     ndLegLengthL = dot(ndLegL, nrsL);
     
     % Magnitude of GRF
-    mag_grfL = 1/dot(nr_grfL, nrsL)*(k*max(l0 - norm(nHL - nFL), 0) - b*ndLegLengthL);
+    mag_grfL = 1/dot(nr_grfL, nrsL)*(k*(l0 - norm(nHL - nFL)) - b*ndLegLengthL);
     
     % Ground reaction force
     nGRF = nr_grfL*mag_grfL;
+    if nGRF(3) < 0
+        nGRF = zeros(3,1);
+    end
 else
     % Sagittal VPP plane
     nnsR = cross((nPs - nFR), nSx); % nsR in N
@@ -143,10 +157,13 @@ else
     ndLegLengthR = dot(ndLegR, nrsR);
     
     % Magnitude of GRF
-    mag_grfR = 1/dot(nr_grfR, nrsR)*(k*max(l0 - norm(nHR - nFR), 0) - b*ndLegLengthR);
+    mag_grfR = 1/dot(nr_grfR, nrsR)*(k*(l0 - norm(nHR - nFR)) - b*ndLegLengthR);
     
     % Ground reaction force
     nGRF = nr_grfR*mag_grfR;
+    if nGRF(3) < 0
+        nGRF = zeros(3,1);
+    end
 end
 
 

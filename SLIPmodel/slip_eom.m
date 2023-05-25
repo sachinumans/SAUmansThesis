@@ -30,7 +30,6 @@ nC =   x(1:3);   % Centre of mass position in the world frame N
 ndC =  x(4:6);   % CoM velocity in the world frame N
 BqN =  x(7:10);  % Quaternion rotation from N to B
 dBqN = x(11:14); % Quaternion rotation velocity from N to B
-SqN =  x(15:18); % Quaternion rotation from N to S
 
 %% Get GRF
 nGRF = state2grf(x, p);
@@ -88,17 +87,17 @@ bMquat = [0; bM];
 ddq = E\([2*Q*bMquat + 8*dQ*Jquat*dQ'*q - 8*q*q'*dQ*Jquat*dQ'*q;...
             -2*norm(dq)^2]);
 
-%% Angular velocity SqN
-Qbar = [q(1) -q(2:4)';...
-     q(2:4) q(1)*eye(3)-Qtilde];
-
-qw = 2*Qbar*dq;
-wz = qw(4);
-dSqN = 0.5*Qbar*[0;0;0;wz];
+% %% Angular velocity SqN
+% Qbar = [q(1) -q(2:4)';...
+%      q(2:4) q(1)*eye(3)-Qtilde];
+% 
+% qw = 2*Qbar*dq;
+% wz = qw(4);
+% dSqN = 0.5*Qbar*[0;0;0;wz];
 
 %% Compile state time derivative
 dx = [ndC; nddC;...
-      dq; ddq;...
-      dSqN];
+      dq; ddq];...
+%       dSqN];
 end
 

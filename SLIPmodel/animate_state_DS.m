@@ -70,7 +70,7 @@ end
 % movie(M,1,24);
 
 %%
-v= VideoWriter(strjoin([pwd "\Movies\" string(datetime("now"),'dMMMyy_HH_mm_ss') "SLIPmodelSingleStance.avi"], ""));
+v= VideoWriter(strjoin([pwd "\Movies\" string(datetime("now"),'dMMMyy_HH_mm_ss') "SLIPmodelDoubleStance.avi"], ""));
 v.FrameRate = 24;
 open(v);
 writeVideo(v,M)
