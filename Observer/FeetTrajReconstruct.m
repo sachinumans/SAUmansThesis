@@ -6,9 +6,12 @@ end
 
 Trial = 27; %randi(33);
 walkVel = -1.25;
-K = 1200:3000;
+K = 1200:7200;
 t = K./120;
 dt = 1/120;
+
+W = 5;
+a = 5;
 
 %%
 ThreadmillCorr = (0:dt:(t(end)-t(1)))'*walkVel;
@@ -33,9 +36,6 @@ rFtVel = zeros(length(K),3);
 lFtPos = zeros(length(K),3);
 rFtPos = zeros(length(K),3);
 
-W = 15;
-a = 5;
-
 lFtVel(a:W,:) = lFtTrueVel(a:W,:);
 rFtVel(a:W,:) = rFtTrueVel(a:W,:);
 lFtPos(a:W,:) = lFtTruePos(a:W,:);
@@ -45,6 +45,9 @@ rFtPos(a:W,:) = rFtTruePos(a:W,:);
 [lFtPos1, rFtPos1] = backEul(lFtAcc, lFtVel, lFtPos, rFtAcc, rFtVel, rFtPos, K, a, dt);
 %%
 [lFtPos2, lZUPTidx2, rFtPos2, rZUPTidx2] = backEulZUPT(lFtAcc, lFtVel, lFtPos, rFtAcc, rFtVel, rFtPos, Zl, Zr, K, W, dt);
+
+%%
+[lFtPos3, lZUPTidx3, rFtPos3, rZUPTidx3, lBias3, rBias3] = backEulZUPTBiasRemoval(lFtAcc, lFtVel, lFtPos, rFtAcc, rFtVel, rFtPos, Zl, Zr, K, W, dt);
 
 %%
 figure();
@@ -68,5 +71,13 @@ plot3(rFtPos2(W:end,1), rFtPos2(W:end,2), rFtPos2(W:end,3), 'r');
 plot3(rFtPos2(rZUPTidx2,1), rFtPos2(rZUPTidx2,2), rFtPos2(rZUPTidx2,3), 'rx'); 
 title("Feet position through direct integration and ZUPT");
 
-hlink = linkprop([T BE BEZ],{'CameraPosition','CameraUpVector', 'XLim', 'YLim', 'ZLim'});
+BEZBR = subplot(2,2,4);
+plot3(lFtPos3(W:end,1), lFtPos3(W:end,2), lFtPos3(W:end,3), 'b'); hold on
+plot3(lFtPos3(lZUPTidx3, 1), lFtPos3(lZUPTidx3,2), lFtPos3(lZUPTidx3,3), 'bx');
+
+plot3(rFtPos3(W:end,1), rFtPos3(W:end,2), rFtPos3(W:end,3), 'r'); 
+plot3(rFtPos3(rZUPTidx3,1), rFtPos3(rZUPTidx3,2), rFtPos3(rZUPTidx3,3), 'rx'); 
+title("Feet position through direct integration, ZUPT and bias removal");
+
+hlink = linkprop([T BE BEZ BEZBR],{'CameraPosition','CameraUpVector', 'XLim', 'YLim', 'ZLim'});
 
