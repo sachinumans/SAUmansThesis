@@ -1,10 +1,10 @@
 clc; clear; close all;
 t = [0 1];
 
-BodyTilt0 = deg2rad([45 4.5 0]); % ZYX
+BodyTilt0 = deg2rad([0 -1 0]); % ZYX
 
-x0 = [0; 0; 0.8;...
-     1; -0.9; 0;...
+x0 = [0; 0; 1.04;...
+     1.39; 0.1; -0.01;...
      compact(quaternion(BodyTilt0,'euler','ZYX','frame'))';...
      0;0;0;0];...
 %      0;0;0;1];
@@ -12,18 +12,19 @@ x0 = [0; 0; 0.8;...
 p{1} = 9.81;       % Gravity constant
 p{2} = 85;       % Body mass
 p{4} = 0.7;       % Torso height
-p{5} = 0.5;       % Torso width
+p{5} = 0.4;       % Torso width
 p{6} = 0.3;       % Torso depth
-p{3} = 10*1/12*p{2}.*diag([p{4}^2 + p{5}^2,...
+p{3} = 2*1/12*p{2}.*diag([p{4}^2 + p{5}^2,...
                         p{4}^2 + p{6}^2,...
-                        p{5}^2 + p{6}^2]);       % Body inertia
-p{7} = 0.05;          % Distance CoM to hip
+                        p{5}^2 + p{6}^2]);       % Body inertia; guesstimate
+% p{3} = diag([0 0 4.58*80/p{2}]); % Body inertia from sources
+p{7} = 0.1;          % Distance CoM to hip
 p{8} = 1.04;          % Leg length
-p{9} = 1e4;%2e4;          % Leg spring constant
-p{10} = 2e2;          % Leg dampner constant
-p{11} = 0.3;          % Sagittal plane Virtual Pendulum Point
-p{12} = -0.2;          % Lateral plane Virtual Pendulum Point
-p{13} = [0;0.3;0];          % Foot position in world frame N
+p{9} = 20/p{8}*p{2}*p{1};          % Leg spring constant
+p{10} = 0.01*sqrt(p{9}*p{2});          % Leg dampner constant
+p{11} = 0.2;          % Sagittal plane Virtual Pendulum Point
+p{12} = -0.1;          % Lateral plane Virtual Pendulum Point
+p{13} = [0;0.05;0];          % Foot position in world frame N
 p{14} = 1;          % Left/Right, 0=both, 1=left, 2=right
 
 %%
@@ -32,9 +33,9 @@ X_sim = [zeros(size(x0'));x0'];
 feetpos{1}(:,1) = p{13};
 t_switch = [];
 
-for str = 1:2
+for str = 1:3
     % left foot
-    [T, x] = ode45(@(t,x) slip_eom(t,x,p), [T_sim(end), T_sim(end)+1], X_sim(end,:));
+    [T, x] = ode45(@(t,x) slip_eom(t,x,p), [T_sim(end), T_sim(end)+0.5], X_sim(end,:));
 
     h = figure(); hold on;
     plot(T,x(:,3))
@@ -88,7 +89,7 @@ for str = 1:2
 
     t_switch = [t_switch, T_sim(end)];
 
-    [T, x] = ode45(@(t,x) slip_eom(t,x,p), [T_sim(end), T_sim(end)+1], X_sim(end,:));
+    [T, x] = ode45(@(t,x) slip_eom(t,x,p), [T_sim(end), T_sim(end)+0.5], X_sim(end,:));
     
     h = figure(); hold on;
     plot(T,x(:,3))

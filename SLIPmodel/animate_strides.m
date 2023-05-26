@@ -37,14 +37,19 @@ Btorso = [bod_t, bod_bo, bod_f, bod_ba, HL, HR];
 %% Animate
 h = figure("Units", "normalized","Position",[0 0 1 1]);
 grid on;
+
 simax = subplot(4,2,[1 3]);
 simax.NextPlot = 'replaceChildren';
+
 frameax = subplot(4,2,[5 7]);
 frameax.NextPlot = 'replaceChildren';
+
 timeax = subplot(4,2,2);
 timeax.NextPlot = 'replaceChildren';
+
 sagax = subplot(4,4,[7 11 15]);
 sagax.NextPlot = 'replaceChildren';
+
 latax = subplot(4,4,[8 12 16]);
 latax.NextPlot = 'replaceChildren';
 
@@ -157,12 +162,18 @@ surf(8*[-2 -2 2 2], 8*[-2 2 -2 2], zeros(4), CO, "FaceAlpha", 0.3)
 
 axis([-2+xk(1) 2+xk(1) -1+xk(2) 1+xk(2) -0.5 2]);
 text(-2+xk(1), -1+xk(2), 0.1, strjoin(["Realtime: x" string((T_sim(k+1)-T_sim(k))*fps)]))
+xlabel("N_x")
+ylabel("N_y")
+zlabel("N_z")
 hold off; 
 
 %
 subplot(timeax)
 plot(T_sim); hold on
-xline(k); hold off;
+xline(k); 
+xlabel("Timestep k")
+ylabel("Sim. time")
+hold off;
 
 %
 subplot(sagax)
@@ -174,7 +185,10 @@ if p{14} == 0
 else
     quiver(sF(1), sF(3), sGRFdir(1), sGRFdir(3),'m')
 end
-axis([-1+sC(1) 1+sC(1) -0.5 2]); hold off
+axis([-1+sC(1) 1+sC(1) -0.5 2]); 
+xlabel("S_x")
+ylabel("S_z")
+hold off
 
 %
 subplot(latax)
@@ -186,7 +200,10 @@ if p{14} == 0
 else
     quiver(sF(2), sF(3), sGRFdir(2), sGRFdir(3),'m')
 end
-axis([-1+sC(2) 1+sC(2) -0.5 2]); hold off
+axis([-1+sC(2) 1+sC(2) -0.5 2]); 
+xlabel("S_y")
+ylabel("S_z")
+hold off
 
 %
 subplot(frameax);
@@ -206,7 +223,11 @@ text(nRb(1,3),nRb(2,3),nRb(3,3),"Bz")
 text(nRs(1,1),nRs(2,1),nRs(3,1),"Sx")
 text(nRs(1,2),nRs(2,2),nRs(3,2),"Sy")
 text(nRs(1,3),nRs(2,3),nRs(3,3),"Sz")
-axis([-1.1 1.1 -1.1 1.1 -1.1 1.1]); hold off
+axis([-1.1 1.1 -1.1 1.1 -1.1 1.1]); 
+xlabel("N_x")
+ylabel("N_y")
+zlabel("N_z")
+hold off
 
 drawnow
 M = getframe(h);

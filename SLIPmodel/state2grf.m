@@ -65,12 +65,12 @@ nAngvelb_n = dBqN(2:4);
 %% Three calculation cases
 if LR == 0
     % Sagittal VPP planes
-    nnsL = cross((nPs - nFL), nSx); % nsL in N
-    nnsR = cross((nPs - nFR), nSx); % nsR in N
+    nnsL = cross((nPs - nFL), nSy); % nsL in N
+    nnsR = cross((nPs - nFR), nSy); % nsR in N
 
     % Lateral VPP planes
-    nnlL = cross((nPl - nFL), nSy); % nlL in N
-    nnlR = cross((nPl - nFR), nSy); % nlR in N
+    nnlL = cross((nPl - nFL), nSx); % nlL in N
+    nnlR = cross((nPl - nFR), nSx); % nlR in N
 
     % Direction of GRFs
     nr_grfL = cross(nnsL, nnlL); % rGL in N
@@ -110,10 +110,10 @@ if LR == 0
     nGRF = [nGRFL, nGRFR];
 elseif LR == 1
     % Sagittal VPP plane
-    nnsL = cross((nPs - nFL), nSx); % nsL in N
+    nnsL = cross((nPs - nFL), nSy); % nsL in N
 
     % Lateral VPP plane
-    nnlL = cross((nPl - nFL), nSy); % nlL in N
+    nnlL = cross((nPl - nFL), nSx); % nlL in N
 
     % Direction of GRFs
     nr_grfL = cross(nnsL, nnlL); % rGL in N
@@ -138,10 +138,10 @@ elseif LR == 1
     end
 else
     % Sagittal VPP plane
-    nnsR = cross((nPs - nFR), nSx); % nsR in N
+    nnsR = cross((nPs - nFR), nSy); % nsR in N
 
     % Lateral VPP plane
-    nnlR = cross((nPl - nFR), nSy); % nlR in N
+    nnlR = cross((nPl - nFR), nSx); % nlR in N
 
     % Direction of GRFs
     nr_grfR = cross(nnsR, nnlR); % rGR in N
