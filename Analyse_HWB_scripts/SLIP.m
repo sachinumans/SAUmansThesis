@@ -1,3 +1,5 @@
+% Compare measured GRF magnitude to optimised SLIP model
+%% Load data
 clc; close all;
 if exist("data","var") ~= 1
     clear;
@@ -14,7 +16,7 @@ LASI = data(Trial).TargetData.LASI_pos_proc(k, 1:3);
 RMML = data(Trial).TargetData.RMML_pos_proc(k, 1:3);
 LMML = data(Trial).TargetData.LMML_pos_proc(k, 1:3);
 
-lL = vecnorm(LASI-LMML, 2, 2);
+lL = vecnorm(LASI-LMML, 2, 2); % Leg lengths
 lR = vecnorm(RASI-RMML, 2, 2);
 
 RgrfVec = data(Trial).Force.force2((10*k(1)):10:(10*k(end)),:);

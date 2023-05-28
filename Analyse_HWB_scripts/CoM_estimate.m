@@ -1,3 +1,6 @@
+% COMPARE DIFFERENT APPROXIMATIONS OF THE CENTRE OF MASS
+
+%% Load data
 clc; close all;
 if exist("data","var") ~= 1
     clear;
@@ -13,8 +16,9 @@ SACR = data(Trial).TargetData.SACR_pos_proc(k, 1:3);
 LASI = data(Trial).TargetData.LASI_pos_proc(k, 1:3);
 RASI = data(Trial).TargetData.RASI_pos_proc(k, 1:3);
 MASI = (LASI+RASI)./2;
-COM_est = (SACR+LASI+RASI)./3;
+COM_est = (SACR+LASI+RASI)./3; % Average of sacrum, LASI and ASI
 
+%% Plot
 figure();
 titles = ["x position" "y position" "z position"];
 for i = 1:3

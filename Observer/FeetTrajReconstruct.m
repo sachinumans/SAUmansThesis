@@ -1,7 +1,9 @@
+% Reconstruct the foot trajectory from IMU data, via different methods
+%% Load data
 clc; close all;
 if exist("data","var") ~= 1
     clear;
-    load([pwd '\..\human-walking-biomechanics\Level 3 - MATLAB files\Level 3 - MATLAB files\All Strides Data files\p2_AllStridesData.mat'])
+    load([pwd '\..\human-walking-biomechanics\Level 3 - MATLAB files\Level 3 - MATLAB files\All Strides Data files\p5_AllStridesData.mat'])
 end
 
 Trial = 27; %randi(33);
@@ -13,7 +15,7 @@ dt = 1/120;
 W = 5;
 a = 5;
 
-%%
+%% Pre-process data
 ThreadmillCorr = (0:dt:(t(end)-t(1)))'*walkVel;
 
 lFtAcc = data(Trial).Kinetic_Kinematic.lFtCGAcc + [0,0,-9.81];
@@ -41,15 +43,16 @@ rFtVel(a:W,:) = rFtTrueVel(a:W,:);
 lFtPos(a:W,:) = lFtTruePos(a:W,:);
 rFtPos(a:W,:) = rFtTruePos(a:W,:);
 
-%%
+%% Backwards Euler direct integratrion
 [lFtPos1, rFtPos1] = backEul(lFtAcc, lFtVel, lFtPos, rFtAcc, rFtVel, rFtPos, K, a, dt);
-%%
+
+%% Backwards Euler direct integratrion + ZUPT
 [lFtPos2, lZUPTidx2, rFtPos2, rZUPTidx2] = backEulZUPT(lFtAcc, lFtVel, lFtPos, rFtAcc, rFtVel, rFtPos, Zl, Zr, K, W, dt);
 
-%%
+%% Backwards Euler direct integratrion + ZUPT + Bias removal
 [lFtPos3, lZUPTidx3, rFtPos3, rZUPTidx3, lBias3, rBias3] = backEulZUPTBiasRemoval(lFtAcc, lFtVel, lFtPos, rFtAcc, rFtVel, rFtPos, Zl, Zr, K, W, dt);
 
-%%
+%% Plot
 figure();
 
 T = subplot(2,2,1);

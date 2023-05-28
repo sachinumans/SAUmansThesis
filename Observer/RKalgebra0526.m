@@ -1,3 +1,4 @@
+% Figure out some reverse kinematics algebra
 clear; clc;
 syms F [3 1]
 assume([0 0 -1]*F, 'positive')

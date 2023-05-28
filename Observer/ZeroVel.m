@@ -1,3 +1,4 @@
+% Detect zero velocity
 clc; close all;
 if exist("data","var") ~= 1
     clear;

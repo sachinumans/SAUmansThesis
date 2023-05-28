@@ -1,6 +1,6 @@
 function [lFtPos, rFtPos] = backEul(lFtAcc, lFtVel, lFtPos, rFtAcc, rFtVel, rFtPos, K, a, dt)
-%BACKEULZUPT Summary of this function goes here
-%   Detailed explanation goes here
+%BACKEULZUPT Backwards Euler integration of IMU data from the feet
+%   
 
 for k = a:length(K)
     lFtVel(k,:) = lFtVel(k-1,:) + dt*(lFtAcc(k-1,:) - [0,0,-9.81]);

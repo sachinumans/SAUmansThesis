@@ -1,3 +1,5 @@
+% Show the principles of virtual pendulum points
+%% Load data
 clc; close all;
 if exist("data","var") ~= 1
     clear;
@@ -97,7 +99,7 @@ axis([t(1) t(end)+1 -3 3])
 title("Sagittal plane")
 ylabel("B_z/m")
 
-%% Lat plane, XZ plane, plot grf-Bz intersection distance from CoM
+%% Lateral plane, XZ plane, plot grf-Bz intersection distance from CoM
 VPPl_lat = NaN(length(k),1);
 VPPr_lat = VPPl_lat;
 
