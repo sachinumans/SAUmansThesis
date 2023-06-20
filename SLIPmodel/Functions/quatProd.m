@@ -1,8 +1,8 @@
 function [qp] = quatProd(Q,P)
 %QUATPROD Summary of this function goes here
 %   Detailed explanation goes here
-validateattributes(Q,{'numeric'},{'size',[4,1]})
-validateattributes(P,{'numeric'},{'size',[4,1]})
+validateattributes(Q,{'numeric' 'sym'},{'size',[4,1]})
+validateattributes(P,{'numeric' 'sym'},{'size',[4,1]})
 
 q0 = Q(1);
 q = Q(2:4);

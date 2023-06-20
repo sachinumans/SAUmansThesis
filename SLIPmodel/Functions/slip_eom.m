@@ -1,5 +1,5 @@
 function [dx] = slip_eom(t, x, p)
-%SLIP_EOM_SS_LEFT Equations of motion for the SLIP model in single stance
+%SLIP_EOM Equations of motion for the SLIP model in single and double stance
 %   Inputs the state, outputs the time derivative
 %% Unpack parameters
 g =     p{1};       % Gravity constant
@@ -28,8 +28,8 @@ end
 %% Unpack state
 nC =   x(1:3);   % Centre of mass position in the world frame N
 ndC =  x(4:6);   % CoM velocity in the world frame N
-BqN =  x(7:10);  % Quaternion rotation from N to B
-dBqN = x(11:14); % Quaternion rotation velocity from N to B
+NqB =  x(7:10);  % Quaternion rotation from N to B
+dNqB = x(11:14); % Quaternion rotation velocity from N to B
 
 %% Get GRF
 nGRF = state2grf(x, p);
@@ -52,26 +52,6 @@ forces = [nGRF, nZ];
 nddC = 1/m * sum(forces, 2);
 
 %% Rotational EoM
-q = BqN;
-dq = dBqN;
-
-Qtilde = [0 -q(4) q(3);...
-          q(4) 0 -q(2);...
-          -q(3) q(2) 0];
-dQtilde = [0 -dq(4) dq(3);...
-          dq(4) 0 -dq(2);...
-          -dq(3) dq(2) 0];
-
-Q = [q(1) -q(2:4)';...
-     q(2:4) q(1)*eye(3)+Qtilde];
-dQ = [dq(1) -dq(2:4)';...
-     dq(2:4) dq(1)*eye(3)+dQtilde];
-
-Jquat = blkdiag(0, J);
-
-E = [4*Q*Jquat*Q';...
-     2*q']; % Weight matrix
-
 if LR == 0
     nM = cross(nFL - nC, nGRFL) + cross(nFR - nC, nGRFR); % Moment in N around C
 elseif LR == 1
@@ -80,24 +60,10 @@ else
     nM = cross(nFR - nC, nGRFR); % Moment in N around C
 end
 
-bM = quatRot(BqN,nM); % Moment in B
-
-bMquat = [0; bM];
-
-ddq = E\([2*Q*bMquat + 8*dQ*Jquat*dQ'*q - 8*q*q'*dQ*Jquat*dQ'*q;...
-            -2*norm(dq)^2]);
-
-% %% Angular velocity SqN
-% Qbar = [q(1) -q(2:4)';...
-%      q(2:4) q(1)*eye(3)-Qtilde];
-% 
-% qw = 2*Qbar*dq;
-% wz = qw(4);
-% dSqN = 0.5*Qbar*[0;0;0;wz];
+ddNqB = slip_eom_ang(NqB,dNqB, J, nM);
 
 %% Compile state time derivative
 dx = [ndC; nddC;...
-      dq; ddq];...
-%       dSqN];
+      dNqB; ddNqB];...
 end
 

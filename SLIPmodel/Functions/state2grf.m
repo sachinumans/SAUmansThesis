@@ -29,20 +29,27 @@ end
 %% Unpack state
 nC =   x(1:3);   % Centre of mass position in the world frame N
 ndC =  x(4:6);   % CoM velocity in the world frame N
-BqN =  x(7:10);  % Quaternion rotation from N to B
-dBqN = x(11:14); % Quaternion rotation velocity from N to B
-% SqN =  x(15:18); % Quaternion rotation from N to S
+NqB =  x(7:10);  % Quaternion rotation from N to B
+dNqB = x(11:14); % Quaternion rotation velocity from N to B
+
+%% S frame
+nRb = quat2R(NqB);
+bRn = quat2R(quatInv(NqB));
+
+
+nBx = nRb*[1;0;0];
+nBx_Nxy = [nBx(1:2); 0];
+nSx = nBx_Nxy./norm(nBx_Nxy);
+nSx = nSx./norm(nSx);
+
+nBy = nRb*[0;1;0];
+nBy_Nxy = [nBy(1:2); 0];
+nSy = nBy_Nxy./norm(nBx_Nxy);
+nSy = nSy./norm(nSy);
+
 
 %% Sagittal VPP point
-qBqN = quaternion(BqN');
-rotAngs = euler(qBqN,'ZXY','frame');
-qSqN = quaternion([rotAngs(1) 0 0], 'euler', 'ZXY','frame');
-NqS = compact(quaternion(quatInv(compact(qSqN))'))';
 
-sSx = [1; 0; 0]; % Sx in S
-nSx = quatRot(NqS,sSx); % Sx in N
-
-NqB = quatInv(BqN);
 bBz = [0; 0; 1]; % Bz in B
 nBz = quatRot(NqB,bBz); % Bz in N
 
@@ -50,17 +57,15 @@ nPs = nC + VPPS*nBz; % Ps in N
 
 
 %% Lateral VPP point
-sSy = [0; 1; 0]; % Sy in S
-nSy = quatRot(NqS,sSy); % Sy in N
-
 nPl = nC + VPPL*nBz; % Pl in N
 
 %% Direction of hip
 bBy = [0; 1; 0]; % By in B
 nBy = quatRot(NqB,bBy); % By in N
 
-%% Time derivative of body
-nAngvelb_n = dBqN(2:4);
+%% Angular velocity of body
+nAngvelb_n = 2*quat2barmatr(NqB)'*dNqB;
+nAngvelb_n = nAngvelb_n(2:4);
 
 %% Three calculation cases
 if LR == 0
@@ -100,11 +105,14 @@ if LR == 0
     % Ground reaction forces
     nGRFL = nr_grfL*mag_grfL;
     nGRFR = nr_grfR*mag_grfR;
-    if nGRFL(3) < 0
-        nGRFL = zeros(3,1);
-    end
-    if nGRFR(3) < 0
-        nGRFR = zeros(3,1);
+
+    if class(nGRFL(3)) ~= "sym"
+        if nGRFL(3) < 0
+            nGRFL = zeros(3,1);
+        end
+        if nGRFR(3) < 0
+            nGRFR = zeros(3,1);
+        end
     end
     
     nGRF = [nGRFL, nGRFR];
@@ -119,7 +127,7 @@ elseif LR == 1
     nr_grfL = cross(nnsL, nnlL); % rGL in N
 
     % Direction of legs
-    nHL = nC - h*nBz - 0.5*Wi*nBy;
+    nHL = nC - h*nBz + 0.5*Wi*nBy;
     
     nrsL = nHL - nFL;
     nrsL = nrsL./norm(nrsL); % Direction of support
@@ -133,8 +141,10 @@ elseif LR == 1
     
     % Ground reaction force
     nGRF = nr_grfL*mag_grfL;
-    if nGRF(3) < 0
-        nGRF = zeros(3,1);
+    if class(nGRF(3)) ~= "sym"
+        if nGRF(3) < 0
+            nGRF = zeros(3,1);
+        end
     end
 else
     % Sagittal VPP plane
@@ -147,7 +157,7 @@ else
     nr_grfR = cross(nnsR, nnlR); % rGR in N
 
     % Direction of legs
-    nHR = nC - h*nBz + 0.5*Wi*nBy;
+    nHR = nC - h*nBz - 0.5*Wi*nBy;
     
     nrsR = nHR - nFR;
     nrsR = nrsR./norm(nrsR); % Direction of support
@@ -161,8 +171,10 @@ else
     
     % Ground reaction force
     nGRF = nr_grfR*mag_grfR;
-    if nGRF(3) < 0
-        nGRF = zeros(3,1);
+    if class(nGRF(3)) ~= "sym"
+        if nGRF(3) < 0
+            nGRF = zeros(3,1);
+        end
     end
 end
 

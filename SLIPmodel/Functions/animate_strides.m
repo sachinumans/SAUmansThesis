@@ -112,8 +112,8 @@ function [M] = plotAll(xk, p, k, T_sim, Btorso, h, simax, frameax, timeax, sagax
 nF = p{13};
 CO = zeros(4,4,3);
 
-BqN = xk(7:10);
-nRb = quat2rotm(quaternion(quatInv(BqN)'));
+NqB = xk(7:10);
+nRb = quat2rotm(quaternion(NqB'));
 
 Ntorso = nRb*Btorso + xk(1:3);
 %
@@ -125,7 +125,7 @@ Nvpps = nRb*[0;0;p{11}];
 Nvppl = nRb*[0;0;p{12}];
 
 %
-qBqN = quaternion(BqN');
+qBqN = quaternion(quatInv(NqB)');
 rotAngs = euler(qBqN,'ZXY','frame');
 rotAngs(isnan(rotAngs)) = 0;
 qSqN = quaternion([rotAngs(1) 0 0], 'euler', 'ZXY','frame');
@@ -146,7 +146,7 @@ plot3(Ntorso(1,5:6), Ntorso(2,5:6), Ntorso(3,5:6), 'b-o')
 plot3(xk(1), xk(2), xk(3), 'rx')
 
 if p{14}==1
-    plot3([nF(1) Ntorso(1,6)], [nF(2) Ntorso(2,6)], [nF(3) Ntorso(3,6)], 'b-')
+    plot3([nF(1) Ntorso(1,5)], [nF(2) Ntorso(2,5)], [nF(3) Ntorso(3,5)], 'b-')
     plot3(nF(1), nF(2), nF(3), 'b^')
 elseif p{14} == 0
     plot3([nF(1, 1) Ntorso(1,5)], [nF(2, 1) Ntorso(2,5)], [nF(3, 1) Ntorso(3,5)], 'b-')
@@ -154,7 +154,7 @@ elseif p{14} == 0
     plot3(nF(1, 1), nF(2, 1), nF(3, 1), 'b^')
     plot3(nF(1, 2), nF(2, 2), nF(3, 2), 'b^')
 else
-    plot3([nF(1) Ntorso(1,5)], [nF(2) Ntorso(2,5)], [nF(3) Ntorso(3,5)], 'b-')
+    plot3([nF(1) Ntorso(1,6)], [nF(2) Ntorso(2,6)], [nF(3) Ntorso(3,6)], 'b-')
     plot3(nF(1), nF(2), nF(3), 'b^')
 end
 

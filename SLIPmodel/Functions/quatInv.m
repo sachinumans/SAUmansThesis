@@ -5,8 +5,7 @@ if all(size(q) == [1, 4])
     q = q';
 end
 
-qConj = q;
-qConj(2:4) = -qConj(2:4);
 
-qinv = qConj./(norm(q)^2);
+
+qinv = quat2conj(q)./(norm(q)^2);
 end
