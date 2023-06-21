@@ -10,17 +10,17 @@ RAC = data(Trial).TargetData.RAC_pos_proc(k, 1:3);
 CAC = (LAC+RAC)./2; % Center of shoulderblades
 
 %% Body fixed frame
-Bz = CAC-COM;
-By = LASI-RASI;
-Bx = cross(By, Bz);
+nBz = CAC-COM;
+nBy = LASI-RASI;
+nBx = cross(nBy, nBz);
 
-Bz = Bz./vecnorm(Bz, 2, 2);
-By = By./vecnorm(By, 2, 2);
-Bx = Bx./vecnorm(Bx, 2, 2);
+nBz = nBz./vecnorm(nBz, 2, 2);
+nBy = nBy./vecnorm(nBy, 2, 2);
+nBx = nBx./vecnorm(nBx, 2, 2);
 
 %% Quaternions
-nRb = cat(3, Bx, By, Bz);
-nRb = permute(nRb, [2 3 1]);
+nRb = cat(3, nBx', nBy', nBz');
+nRb = permute(nRb, [1 3 2]);
 nqb = rotm2quat(nRb);
 
 %% Differentiate
