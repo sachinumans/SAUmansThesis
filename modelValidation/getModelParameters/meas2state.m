@@ -11,8 +11,9 @@ CAC = (LAC+RAC)./2; % Center of shoulderblades
 
 %% Body fixed frame
 nBz = CAC-COM;
-nBy = LASI-RASI;
-nBx = cross(nBy, nBz);
+nBY = LASI-RASI;
+nBx = cross(nBY, nBz);
+nBy = cross(nBz, nBx);
 
 nBz = nBz./vecnorm(nBz, 2, 2);
 nBy = nBy./vecnorm(nBy, 2, 2);
@@ -28,5 +29,5 @@ dCOM = diff(COM, 1, 1).*120;
 dnqb = diff(nqb, 1, 1).*120;
 
 %% Compile
-x = [COM(1:end-1,:), dCOM, nqb(1:end-1,:), dnqb].';
+x = [COM(2:end,:), dCOM, nqb(2:end,:), dnqb].';
 end

@@ -1,12 +1,4 @@
-%% Load data
-clc; close all;
-if exist("data","var") ~= 1
-    clear;
-    load([pwd '\..\..\human-walking-biomechanics\Level 3 - MATLAB files\Level 3 - MATLAB files\All Strides Data files\p6_AllStridesData.mat'])
-end
-
-Trial = 12; %randi(33);
-k = 3000:6500;
+function [Jest] = getInertia(data, Trial, k)
 t = data(Trial).Time.TIME(k);% k/120;
 
 %% Load ground reaction forces
@@ -16,21 +8,21 @@ LgrfVec = data(Trial).Force.force1((10*k(1)):10:(10*k(end)),:);
 LgrfPos = data(Trial).Force.cop1((10*k(1)):10:(10*k(end)),:);
 
 %% Filter stance phases per foot
-magL = vecnorm(LgrfVec, 2, 2);
-magR = vecnorm(RgrfVec, 2, 2);
-[pL, pLidx] = findpeaks(-1*magL);
-[pR, pRidx] = findpeaks(-1*magR);
-
-lb = -max([pL(pL<-100); pR(pR<-100)]);
-
-LstanceIdx = find(magL>=lb);
-RstanceIdx = find(magR>=lb);
-
-RgrfVec_filt = zeros(length(k), 3);
-RgrfPos_filt = zeros(length(k), 3);
-LgrfVec_filt = zeros(length(k), 3);
-LgrfPos_filt = zeros(length(k), 3);
-
+% magL = vecnorm(LgrfVec, 2, 2);
+% magR = vecnorm(RgrfVec, 2, 2);
+% [pL, pLidx] = findpeaks(-1*magL);
+% [pR, pRidx] = findpeaks(-1*magR);
+% 
+% lb = -max([pL(pL<-100); pR(pR<-100)]);
+% 
+% LstanceIdx = find(magL>=lb);
+% RstanceIdx = find(magR>=lb);
+% 
+% RgrfVec_filt = zeros(length(k), 3);
+% RgrfPos_filt = zeros(length(k), 3);
+% LgrfVec_filt = zeros(length(k), 3);
+% LgrfPos_filt = zeros(length(k), 3);
+% 
 % RgrfVec_filt(RstanceIdx,:) = RgrfVec(RstanceIdx,:);
 % RgrfPos_filt(RstanceIdx,:) = RgrfPos(RstanceIdx,:);
 % LgrfVec_filt(LstanceIdx,:) = LgrfVec(LstanceIdx,:);
@@ -41,7 +33,7 @@ RgrfPos_filt(~any(isnan(RgrfPos), 2),:) = RgrfPos(~any(isnan(RgrfPos), 2),:);
 LgrfVec_filt(~any(isnan(LgrfVec), 2),:) = LgrfVec(~any(isnan(LgrfVec), 2),:);
 LgrfPos_filt(~any(isnan(LgrfPos), 2),:) = LgrfPos(~any(isnan(LgrfPos), 2),:);
 
-%% Get measures state evolution
+%% Get measured state evolution
 x = meas2state(data, Trial, k);
 
 %% Formulate linear least squares problem
@@ -80,12 +72,12 @@ Thet = zeros(4*(length(k)-2), 1);
 J_debug = zeros((length(k)-2), length(J));
 
 idx=1;
-for ki = 1:length(k)-2
-    nM = cross(LgrfPos_filt(ki,:), LgrfVec_filt(ki,:)) + ...
-         cross(RgrfPos_filt(ki,:), RgrfVec_filt(ki,:));
-    bM = quat2R(x(7:10, ki))'*nM';
+for ki = 1:length(k)-3
+    nM = cross(LgrfPos_filt(ki+2,:) - x(1:3,ki)', LgrfVec_filt(ki+2,:)) + ...
+         cross(RgrfPos_filt(ki+2,:) - x(1:3,ki)', RgrfVec_filt(ki+2,:));
+    bM = quat2R(x(7:10, ki+2))'*nM';
 
-    Omeg(idx:idx+3, :) = omeg(x(7:10, ki), x(11:14, ki), ddnqb(:,ki));
+    Omeg(idx:idx+3, :) = omeg(x(7:10, ki), x(11:14, ki), ddnqb(:,ki+1));
     Thet(idx:idx+3) = thet(x(7:10, ki), bM);
     
 %     J_debug(ki,:) = Omeg(idx:idx+3, :)\Thet(idx:idx+3);
@@ -94,12 +86,16 @@ for ki = 1:length(k)-2
     idx = idx+4;
 end
 
-J_est = Omeg\Thet
+J_est = Omeg\Thet;
 
-%% Debug time
+Jest = double(subs(Jbar, J, J_est));
+Jest = Jest(2:4, 2:4);
+%% Debug
 
-figure();
-plot(t(1:end-2), J_debug)
-
-figure();
-plot(t(1:end-1), x(7:10, :))
+% figure();
+% plot(t(1:end-2), J_debug(:,1:2))
+% % 
+% figure();
+% plot(t(1:end-1), x(7:10, :))
+% 
+end
