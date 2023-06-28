@@ -27,13 +27,13 @@ HR = bod_bo - [0; 0.5*Wi; 0];
 
 Btorso = [bod_t, bod_bo, bod_f, bod_ba, HL, HR];
 
-BqN = x(7:10)';
-nRb = quat2rotm(quaternion(quatInv(BqN)'));
+NqB = x(7:10)';
+nRb = quat2R(NqB);
 
-Ntorso = nRb*Btorso + x(1:3)';
+Ntorso = nRb*Btorso + x(1:3);
 
 if LR == 0
-    legLen = [norm(Ntorso(:,5) - nF(:,1)),...
+    legLen = [norm(Ntorso(:,5) - nF(:,1));...
                 norm(Ntorso(:,6) - nF(:,2))];
 elseif LR == 1
     legLen = norm(Ntorso(:,5) - nF);

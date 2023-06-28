@@ -57,13 +57,13 @@ xMeas = meas2state(data, Trial, k);
 %% Run model
 Vl = 0.03;
 Vs = 0.1;
-h = 0.05;
+h = -0.15;
 Wi = 0.43;
 l0 = 1.15;
 m = data(Trial).Participant.Mass;
 K = 2e4;
 b = 20;
-J = [1, 1, 1];
+J = [10, 10, 2];
 p = [Vl, Vs, h, Wi, l0, K, b, J];
 
 xModelRes = runModel(p, m, k, xMeas, gaitCycle, bound, LgrfPos, RgrfPos, LgrfMag, RgrfMag, dt);
