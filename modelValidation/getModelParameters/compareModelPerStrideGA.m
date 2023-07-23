@@ -1,24 +1,20 @@
-function [ResNorm] = compareModelPer2Strides(velReset, p, p_bio, p_spring, w, k, xMeas, walkVel, gaitCycle, bound, LgrfPos, RgrfPos, LgrfVec, RgrfVec, LgrfMag, RgrfMag, LLML, LGTR, RLML, RGTR, dt, plotIO)
+function [ResNorm] = compareModelPerStrideGA(p, p_bio, p_spring, w, k, xMeas, walkVel, gaitCycle, bound, LgrfPos, RgrfPos, LgrfVec, RgrfVec, LgrfMag, RgrfMag, LLML, LGTR, RLML, RGTR, dt, plotIO)
 Wi = p_bio(1); l0 = p_bio(2);  m = p_bio(3); h = p_bio(4);
-K_ss = p_spring(1);  b_ss = p_spring(2); K_ds = p_spring(3); b_ds = p_spring(4);
+K_ss = p_spring(1);  b_ss = p_spring(2);  K_ds = p_spring(3);
 Vl_ss = p(1); Vs_ss = p(2);
 Vl_ds = p(3);
 Vs_bl = p(4); Vs_fl = p(5);
 J = p(6:8);
 l_preload = p(9);
 
-p = {0, 0, 0, 0, Wi, 0, h, l0, [], [], [], [], [], []};
+p = {0, 0, 0, 0, Wi, 0, h, l0+l_preload, [], [], [], [], [], []};
 grfModel = cat(3, nan(3, 2, k(1)-1), nan(3, 2,length(k)));
 legLenModel = [nan(2, k(1)-1), nan(2,length(k))];
 k_switch = [];
 linMult = [0];
-ResNorm = 0;
 
 ki = k(1);
 xModel = [zeros(14, k(1)-1), xMeas(:,1), zeros(14,length(k)-1)];
-postResetFlag = false;
-initialiseFlag = false;
-k_next_init = ki;
 while ki < k(end)
     k1 = ki;
     switch gaitCycle(1)
@@ -57,41 +53,18 @@ while ki < k(end)
             end
             gaitCycle = circshift(gaitCycle, -1);
         case "lDSr"
-            if postResetFlag
-                xModelRes = w*(xModel(:,k_next_init:k_end) - xMeas(:,(k_next_init:k_end)-k(1)+1))*diag((1:(k_end-k_next_init+1)).^2);
-                xModelRes(isnan(xModelRes)) = 1e7;
-                xModelResNorm = norm(xModelRes, "fro")^2;
-                ResNorm = ResNorm + xModelResNorm;
-
-                postResetFlag = false;
-                initialiseFlag = true;
-                ki = k_next_init;
-                gaitCycle = circshift(gaitCycle, 2);
-                continue
-            end
-
-            if initialiseFlag
-                xModel(:, ki) = xMeas(:,ki-k(1)+1); % reinitialise
-                initialiseFlag = false;
-                postResetFlag = false;
-            else
-                xModel(:, ki) = diag([1 1 1, velReset(1:3), 1 1 1 1, velReset(4:7)])*xModel(:, ki); % apply reset map
-                k_next_init = ki;
-                postResetFlag = true;
-            end
-
             k_end = ki+ find(LgrfMag(ki:end) < bound, 1);
             k_switch = [k_switch k_end];
             linMult = [linMult 1:(k_end-ki)];
             lF = mean(LgrfPos(k1:k_end,1:2) + (walkVel(1:2)'*(0:(k_end-k1)))'*dt, 1, "omitnan");
             rF = mean(RgrfPos(k1:k_end,1:2) + (walkVel(1:2)'*(0:(k_end-k1)))'*dt, 1, "omitnan");
 
-            
-            
+            % reinitialise
+            xModel(:, ki) = xMeas(:,ki-k(1)+1);
             for ki = ki:k_end
                 lFcur = lF-walkVel(1:2)*dt*(ki-k1);
                 rFcur = rF-walkVel(1:2)*dt*(ki-k1);
-                xModel(:,ki+1) = xModel(:,ki) + dt*lDSr_split_eom(0,xModel(:,ki)',lFcur,rFcur,Vl_ds,Vs_bl,Vs_fl,h,Wi,l0+l_preload,m,K_ds,b_ds,J);
+                xModel(:,ki+1) = xModel(:,ki) + dt*lDSr_split_eom(0,xModel(:,ki)',lFcur,rFcur,Vl_ds,Vs_bl,Vs_fl,h,Wi,l0+l_preload,m,K_ds,0,J);
 
                 p{9} = K_ds; p{10} = 0;
                 p{11} = [Vs_bl, Vs_fl]; p{12} = Vl_ds;
@@ -102,41 +75,18 @@ while ki < k(end)
             end
             gaitCycle = circshift(gaitCycle, -1);
         case "rDSl"
-            if postResetFlag
-                xModelRes = w*(xModel(:,k_next_init:k_end) - xMeas(:,(k_next_init:k_end)-k(1)+1))*diag((1:(k_end-k_next_init+1)).^2);
-                xModelRes(isnan(xModelRes)) = 1e7;
-                xModelResNorm = norm(xModelRes, "fro")^2;
-                ResNorm = ResNorm + xModelResNorm;
-
-                postResetFlag = false;
-                initialiseFlag = true;
-                ki = k_next_init;
-                gaitCycle = circshift(gaitCycle, 2);
-                continue
-            end
-
-            if initialiseFlag
-                xModel(:, ki) = xMeas(:,ki-k(1)+1); % reinitialise
-                initialiseFlag = false;
-                postResetFlag = false;
-            else
-                xModel(:, ki) = diag([1 1 1, velReset(1:3), 1 1 1 1, velReset(4:7)])*xModel(:, ki); % apply reset map
-                k_next_init = ki;
-                postResetFlag = true;
-            end
-
             k_end = ki+ find(RgrfMag(ki:end) < bound, 1);
             k_switch = [k_switch k_end];
             linMult = [linMult 1:(k_end-ki)];
             lF = mean(LgrfPos(k1:k_end,1:2) + (walkVel(1:2)'*(0:(k_end-k1)))'*dt, 1, "omitnan");
             rF = mean(RgrfPos(k1:k_end,1:2) + (walkVel(1:2)'*(0:(k_end-k1)))'*dt, 1, "omitnan");
 
-             % apply reset map
-            xModel(:, ki) = diag([0 0 0, velReset(1:3), 0 0 0 0, velReset(4:7)])*xModel(:, ki);
+            % reinitialise
+            xModel(:, ki) = xMeas(:,ki-k(1)+1);
             for ki = ki:k_end
                 lFcur = lF-walkVel(1:2)*dt*(ki-k1);
                 rFcur = rF-walkVel(1:2)*dt*(ki-k1);
-                xModel(:,ki+1) = xModel(:,ki) + dt*rDSl_split_eom(0,xModel(:,ki)',lFcur,rFcur,Vl_ds,Vs_bl,Vs_fl,h,Wi,l0+l_preload,m,K_ds,b_ds,J);
+                xModel(:,ki+1) = xModel(:,ki) + dt*rDSl_split_eom(0,xModel(:,ki)',lFcur,rFcur,Vl_ds,Vs_bl,Vs_fl,h,Wi,l0+l_preload,m,K_ds,0,J);
 
                 p{9} = K_ds; p{10} = 0;
                 p{11} = [Vs_bl, Vs_fl]; p{12} = Vl_ds;
@@ -150,9 +100,13 @@ while ki < k(end)
     end
 end
 
+xModel = xModel(:,k(1:end-1));
+xModelRes = w*(xModel - xMeas)*diag(linMult(2:(length(xModel)+1))'.^2);
+xModelRes(isnan(xModelRes)) = 1e7;
+xModelResNorm = norm(xModelRes, "fro")^2;
 
 
-
+ResNorm = xModelResNorm;
 
 if plotIO
     t = k*dt;

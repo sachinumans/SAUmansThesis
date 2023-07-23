@@ -154,12 +154,6 @@ plot(k_stepVal-k(1), realStepVal(:,1), 'bx','DisplayName',"Measured"); hold on
 plot(k_stepVal-k(1), controlStepVal(1,:)*controlParam(1), 'rx','DisplayName',"Controller")
 title("x Validation")
 
-subplot(2,2,4)
-plot(k_stepVal-k(1), realStepVal(:,2), 'bx'); hold on
-plot(k_stepVal-k(1), controlStepVal(2,:) + controlParam(2), 'rx')
-% legend("Measured", "Controller")
-title("y Validation")
-xlabel("Timestep")
 
 %% Decision making
 L = []; F = [];
@@ -171,22 +165,43 @@ end
 
 subplot(2,2,2)
 plot(F(1,:)*controlParam(1),'DisplayName',"Controller - continuous")
-legend()
-subplot(2,2,4)
-plot(F(2,:) + controlParam(2))
+legend('AutoUpdate','off')
 
-Y = fft(L-mean(L));
-P2 = abs(Y/length(k));
-P1 = P2(1:length(k)/2+1);
-P1(2:end-1) = 2*P1(2:end-1);
-f = 120*(0:(length(k)/2))/length(k);
-
-Llp = lowpass(L,2.5,120,'Steepness',0.95, 'ImpulseResponse','iir');
+% Llp = lowpass(L,2.5,120,'Steepness',0.95, 'ImpulseResponse','iir');
+lpFilt = designfilt('lowpassiir','PassbandFrequency',2.5,'StopbandFrequency', 3,...
+                    'PassbandRipple',0.2,'StopbandAttenuation', 65, ...
+                    'SampleRate', 120,'DesignMethod','cheby2');
+Llp = filtfilt(lpFilt, L);
 
 dL = diff(L, 1)*120;
 ddL = diff(L, 2)*120^2;
 dLlp = diff(Llp, 1)*120;
 ddLlp = diff(Llp, 2)*120^2;
+
+%%
+zcD1idx = k(dLlp(1:end-1).*dLlp(2:end) <0)-k(1);
+stepflag = zcD1idx(ddLlp(zcD1idx) > -0.005);
+stepflag = stepflag(diff(stepflag)>30);
+
+
+subplot(2,2,4)
+plot(nan, 'r--', 'LineWidth',1.1, 'DisplayName',"Detected steptime"); hold on
+plot(nan, 'k', 'DisplayName',"Real steptime")
+legend('AutoUpdate','off')
+xline(stepflag, 'r--', 'LineWidth',1.1)
+xline(k_stepVal-k(1))
+plot(F(2,:) + controlParam(2))
+plot(k_stepVal-k(1), realStepVal(:,2), 'bx'); hold on
+plot(k_stepVal-k(1), controlStepVal(2,:) + controlParam(2), 'rx')
+title("y Validation")
+xlabel("Timestep")
+
+%%
+Y = fft(L-mean(L));
+P2 = abs(Y/length(k));
+P1 = P2(1:length(k)/2+1);
+P1(2:end-1) = 2*P1(2:end-1);
+f = 120*(0:(length(k)/2))/length(k);
 
 Ylp = fft(Llp-mean(Llp));
 P2lp = abs(Ylp/length(k));
@@ -203,6 +218,7 @@ legend('AutoUpdate', 'off')
 xline(k_stepVal-k(1))
 xlabel("Timestep")
 ylabel("Meters")
+xline(stepflag, 'r--', 'LineWidth',1.1)
 
 subplot(2,2,2)
 plot(dL,'DisplayName','dL'); hold on
@@ -225,16 +241,6 @@ plot(f, P1lp)
 xlim([0 20])
 xlabel("Frequency")
 legend("Unfiltered FFT", "Filtered FFT")
-%%
-[zcD1, zcD1idx] = findpeaks(-abs(dLlp));
-zcD1idx = zcD1idx(dLlp(zcD1idx+1).*dLlp(zcD1idx-1) <0);
-stepflag = zcD1idx(ddLlp(zcD1idx) > 0.005);
-stepflag = stepflag(diff(stepflag)>30);
-
-
-subplot(2,2,1)
-xline(stepflag, 'r--', 'LineWidth',1.1)
-
 
 %%
 function [k_step, realStep] = getStepTime(k, xMeas, walkVel, LgrfPos, RgrfPos, LgrfVec, RgrfVec, gaitCycle, bound, dt) 

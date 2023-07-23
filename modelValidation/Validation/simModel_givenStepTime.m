@@ -1,74 +1,122 @@
-function [ResNorm] = compareModelPerStride(p, p_bio, p_spring, w, k, xMeas, walkVel, gaitCycle, bound, LgrfPos, RgrfPos, LgrfVec, RgrfVec, LgrfMag, RgrfMag, LLML, LGTR, RLML, RGTR, dt, plotIO)
-Wi = p_bio(1); l0 = p_bio(2);  m = p_bio(3); h = p_bio(4);
-K_ss = p_spring(1);  b_ss = p_spring(2);  K_ds = p_spring(3);
-Vl_ss = p(1); Vs_ss = p(2);
-Vl_ds = p(3);
-Vs_bl = p(4); Vs_fl = p(5);
-J = p(6:8);
-l_preload = p(9);
+function [xModel] = simModel_givenStepTime(x0, modelParams, k, dt, data, Trial, walkVel, BMthr, plotIO)
+Wi = modelParams.physical.Wi; l0 = modelParams.physical.l0;  m = modelParams.physical.m; h = modelParams.physical.h;
+Vl_ss = modelParams.vpp.Vl_ss; Vs_ss = modelParams.vpp.Vs_ss;
+Vl_ds = modelParams.vpp.Vl_ds;
+Vs_bl = modelParams.vpp.Vs_bl; Vs_fl = modelParams.vpp.Vs_fl;
+J = modelParams.physical.J;
+l_preload = modelParams.spring.l_preload;
+K_ss = modelParams.spring.K_ss;  b_ss = modelParams.spring.b_ss;
+K_ds = modelParams.spring.K_ds; b_ds = modelParams.spring.b_ds;
 
-p = {0, 0, 0, 0, Wi, 0, h, l0, [], [], [], [], [], []};
+Rv = modelParams.resetMap;
+
+SW = modelParams.FPE.SW;
+SL = modelParams.FPE.SL;
+
+%% Extract data
+SACR = data(Trial).TargetData.SACR_pos_proc(k, 1:3);
+LASI = data(Trial).TargetData.LASI_pos_proc(k, 1:3);
+RASI = data(Trial).TargetData.RASI_pos_proc(k, 1:3);
+COM = (SACR+LASI+RASI)./3; % COM estimate
+
+LAC = data(Trial).TargetData.LAC_pos_proc(k, 1:3);
+RAC = data(Trial).TargetData.RAC_pos_proc(k, 1:3);
+CAC = (LAC+RAC)./2; % Center of shoulderblades
+
+LGTR = data(Trial).TargetData.LGTR_pos_proc(k, 1:3);
+RGTR = data(Trial).TargetData.RGTR_pos_proc(k, 1:3);
+
+LLML = data(Trial).TargetData.LLML_pos_proc(k, 1:3);
+RLML = data(Trial).TargetData.RLML_pos_proc(k, 1:3);
+
+RgrfVec = data(Trial).Force.force2(1:10:end,:);
+RgrfPos = data(Trial).Force.cop2(10:10:end,:);
+LgrfVec = data(Trial).Force.force1(1:10:end,:);
+LgrfPos = data(Trial).Force.cop1(10:10:end,:);
+
+LgrfMag = vecnorm(LgrfVec, 2, 2);
+RgrfMag = vecnorm(RgrfVec, 2, 2);
+
+%% Filter wrongly measured feet pos
+Lidx_correct = find(LgrfPos(:,1)>0.05 & LgrfPos(:,1)<0.15 & LgrfPos(:,2)>0.5 & LgrfPos(:,2)<1.35);
+LgrfPos = interp1(Lidx_correct, LgrfPos(Lidx_correct,:), 1:length(LgrfPos), "linear");
+Ridx_correct = find(RgrfPos(:,1)<-0.05 & RgrfPos(:,1)>-0.15 & RgrfPos(:,2)>0.5 & RgrfPos(:,2)<1.35);
+RgrfPos = interp1(Ridx_correct, RgrfPos(Ridx_correct,:), 1:length(RgrfPos), "linear");
+
+%% Determine initial state
+initGRFmagL = norm(LgrfVec(k(1),:));
+initGRFmagR = norm(RgrfVec(k(1),:));
+
+bound = m*9.81*BMthr;
+gaitCycle = ["rDSl", "lSS", "lDSr", "rSS"];
+
+if initGRFmagL>bound && initGRFmagR>bound
+    error("Cannot initialise in double stance, ambiguous stance order. Choose a different initial timestep.")
+elseif initGRFmagL < bound && initGRFmagR>bound
+    gaitCycle = circshift(gaitCycle, -3);
+elseif initGRFmagL>bound && initGRFmagR < bound
+    gaitCycle = circshift(gaitCycle, -1);
+end
+
+xMeas = meas2state(data, Trial, k);
+[k_step, realStep] = getStepTime(k, xMeas, walkVel, LgrfPos, RgrfPos, LgrfVec, RgrfVec, gaitCycle, bound, dt);
+%% Simulate
+p = {0, 0, 0, 0, Wi, 0, h, l0+l_preload, [], [], [], [], [], []};
 grfModel = cat(3, nan(3, 2, k(1)-1), nan(3, 2,length(k)));
 legLenModel = [nan(2, k(1)-1), nan(2,length(k))];
-k_switch = [];
-linMult = [0];
+initialiseFlag = true;
 
 ki = k(1);
-xModel = [zeros(14, k(1)-1), xMeas(:,1), zeros(14,length(k)-1)];
+xModel = [nan(14, k(1)-1), x0, zeros(14,length(k)-1)];
 while ki < k(end)
     k1 = ki;
     switch gaitCycle(1)
         case "lSS"
-            k_end = ki+ find(RgrfMag(ki:end)>bound, 1);
-            k_switch = [k_switch k_end];
-            linMult = [linMult (linMult(end)+1):(linMult(end)+k_end-ki)];
-            lF = mean(LgrfPos(k1:k_end,1:2) + (walkVel(1:2)'*(0:(k_end-k1)))'*dt, 1, "omitnan");
+            k_end = k_step(find(k_step > ki, 1));
+            if initialiseFlag; initialiseFlag = false; lF = mean(LgrfPos(k1:k_end,1:2) + (walkVel(1:2)'*(0:(k_end-k1)))'*dt, 1, "omitnan")'; end
             for ki = ki:k_end
-                lFcur = lF-walkVel(1:2)*dt*(ki-k1);
+                lFcur = lF'-walkVel(1:2)*dt*(ki-k1);
                 xModel(:,ki+1) = xModel(:,ki) + dt*LSSeom(0,xModel(:,ki)',lFcur,Vl_ss,Vs_ss,h,Wi,l0+l_preload,m,K_ss,b_ss,J);
 
                 p{9} = K_ss; p{10} = b_ss;
                 p{11} = Vs_ss; p{12} = Vl_ss;
-                p{13} = [lF'; 0]; p{14} = 1;
+                p{13} = [lFcur'; 0]; p{14} = 1;
                 grfModel(:,1,ki) = state2grf_DSsplit(xModel(:,ki), p);
 
                 legLenModel(1,ki) = state2legLength_DSsplit(xModel(:,ki), p);
             end
             gaitCycle = circshift(gaitCycle, -1);
+            lF = lFcur';
         case "rSS"
-            k_end = ki+ find(LgrfMag(ki:end)>bound, 1);
-            k_switch = [k_switch k_end];
-            linMult = [linMult (linMult(end)+1):(linMult(end)+k_end-ki)];
-            rF = mean(RgrfPos(k1:k_end,1:2) + (walkVel(1:2)'*(0:(k_end-k1)))'*dt, 1, "omitnan");
+            k_end = find(k_step > ki, 1);
+            if initialiseFlag; initialiseFlag = false; rF = mean(RgrfPos(k1:k_end,1:2) + (walkVel(1:2)'*(0:(k_end-k1)))'*dt, 1, "omitnan")'; end
             for ki = ki:k_end
-                rFcur = rF-walkVel(1:2)*dt*(ki-k1);
+                rFcur = rF'-walkVel(1:2)*dt*(ki-k1);
                 xModel(:,ki+1) = xModel(:,ki) + dt*RSSeom(0,xModel(:,ki)',rFcur,Vl_ss,Vs_ss,h,Wi,l0+l_preload,m,K_ss,b_ss,J);
 
                 p{9} = K_ss; p{10} = b_ss;
                 p{11} = Vs_ss; p{12} = Vl_ss;
-                p{13} = [rF'; 0]; p{14} = 2;
+                p{13} = [rFcur'; 0]; p{14} = 2;
                 grfModel(:,2,ki) = state2grf_DSsplit(xModel(:,ki), p);
 
                 legLenModel(2,ki) = state2legLength_DSsplit(xModel(:,ki), p);
             end
             gaitCycle = circshift(gaitCycle, -1);
+            rF = rFcur';
         case "lDSr"
-            k_end = ki+ find(LgrfMag(ki:end) < bound, 1);
-            k_switch = [k_switch k_end];
-            linMult = [linMult 1:(k_end-ki)];
-            lF = mean(LgrfPos(k1:k_end,1:2) + (walkVel(1:2)'*(0:(k_end-k1)))'*dt, 1, "omitnan");
-            rF = mean(RgrfPos(k1:k_end,1:2) + (walkVel(1:2)'*(0:(k_end-k1)))'*dt, 1, "omitnan");
+            k_end = ki+ 20;
+            [rF, ~] = StepControllerFPE(xModel(:,ki), l0, Wi, h, walkVel);
+            rF = diag([SW 1])*rF + [0; SL];
 
-            % reinitialise
-            xModel(:, ki) = xMeas(:,ki-k(1)+1);
+            xModel(:, ki) = Rv*xModel(:, ki); % apply reset map
             for ki = ki:k_end
-                lFcur = lF-walkVel(1:2)*dt*(ki-k1);
-                rFcur = rF-walkVel(1:2)*dt*(ki-k1);
-                xModel(:,ki+1) = xModel(:,ki) + dt*lDSr_split_eom(0,xModel(:,ki)',lFcur,rFcur,Vl_ds,Vs_bl,Vs_fl,h,Wi,l0+l_preload,m,K_ds,0,J);
+                lFcur = lF'-walkVel(1:2)*dt*(ki-k1);
+                rFcur = rF'-walkVel(1:2)*dt*(ki-k1);
+                xModel(:,ki+1) = xModel(:,ki) + dt*lDSr_split_eom(0,xModel(:,ki)',lFcur,rFcur,Vl_ds,Vs_bl,Vs_fl,h,Wi,l0+l_preload,m,K_ds,b_ds,J);
 
                 p{9} = K_ds; p{10} = 0;
                 p{11} = [Vs_bl, Vs_fl]; p{12} = Vl_ds;
-                p{13} = [[lF'; 0],[rF'; 0]]; p{14} = -1;
+                p{13} = [[lFcur'; 0],[rFcur'; 0]]; p{14} = -1;
                 grfModel(:,:,ki) = state2grf_DSsplit(xModel(:,ki), p);
 
                 legLenModel(:,ki) = state2legLength_DSsplit(xModel(:,ki), p);
@@ -76,21 +124,19 @@ while ki < k(end)
             gaitCycle = circshift(gaitCycle, -1);
         case "rDSl"
             k_end = ki+ find(RgrfMag(ki:end) < bound, 1);
-            k_switch = [k_switch k_end];
-            linMult = [linMult 1:(k_end-ki)];
-            lF = mean(LgrfPos(k1:k_end,1:2) + (walkVel(1:2)'*(0:(k_end-k1)))'*dt, 1, "omitnan");
-            rF = mean(RgrfPos(k1:k_end,1:2) + (walkVel(1:2)'*(0:(k_end-k1)))'*dt, 1, "omitnan");
+            
+            [lF, ~] = StepControllerFPE(xModel(:,ki), l0, Wi, h, walkVel);
+            lF = diag([SW 1])*lF + [0; SL];
 
-            % reinitialise
-            xModel(:, ki) = xMeas(:,ki-k(1)+1);
+            xModel(:, ki) = Rv*xModel(:, ki); % apply reset map
             for ki = ki:k_end
-                lFcur = lF-walkVel(1:2)*dt*(ki-k1);
-                rFcur = rF-walkVel(1:2)*dt*(ki-k1);
-                xModel(:,ki+1) = xModel(:,ki) + dt*rDSl_split_eom(0,xModel(:,ki)',lFcur,rFcur,Vl_ds,Vs_bl,Vs_fl,h,Wi,l0+l_preload,m,K_ds,0,J);
+                lFcur = lF'-walkVel(1:2)*dt*(ki-k1);
+                rFcur = rF'-walkVel(1:2)*dt*(ki-k1);
+                xModel(:,ki+1) = xModel(:,ki) + dt*rDSl_split_eom(0,xModel(:,ki)',lFcur,rFcur,Vl_ds,Vs_bl,Vs_fl,h,Wi,l0+l_preload,m,K_ds,b_ds,J);
 
                 p{9} = K_ds; p{10} = 0;
                 p{11} = [Vs_bl, Vs_fl]; p{12} = Vl_ds;
-                p{13} = [[lF'; 0],[rF'; 0]]; p{14} = -2;
+                p{13} = [[lFcur'; 0],[rFcur'; 0]]; p{14} = -2;
                 grfModel(:,:,ki) = state2grf_DSsplit(xModel(:,ki), p);
 
                 legLenModel(:,ki) = state2legLength_DSsplit(xModel(:,ki), p);
@@ -101,12 +147,6 @@ while ki < k(end)
 end
 
 xModel = xModel(:,k(1:end-1));
-xModelRes = w*(xModel - xMeas)*diag(linMult(2:(length(xModel)+1))'.^2);
-xModelRes(isnan(xModelRes)) = 1e7;
-xModelResNorm = norm(xModelRes, "fro")^2;
-
-
-ResNorm = xModelResNorm;
 
 if plotIO
     t = k*dt;
@@ -210,7 +250,7 @@ if plotIO
     plot(t(1:end-1)', xModel(2,:)', 'b-.','DisplayName',"Model - y")
     plot(t(1:end-1)', xModel(3,:)', 'b','DisplayName',"Model - z")
     legend('AutoUpdate', 'off')
-    for i = flip(k_switch)
+    for i = flip(k_step)
         xline(t(1)+(i-k(1))/120, 'k-', {gaitCycle(1)})
         gaitCycle = circshift(gaitCycle, 1);
     end
@@ -255,5 +295,6 @@ if plotIO
     legend
     ylim([-2 2])
 end
+
 
 end

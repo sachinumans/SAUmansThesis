@@ -1,24 +1,20 @@
-function [ResNorm] = compareModelPer2Strides(velReset, p, p_bio, p_spring, w, k, xMeas, walkVel, gaitCycle, bound, LgrfPos, RgrfPos, LgrfVec, RgrfVec, LgrfMag, RgrfMag, LLML, LGTR, RLML, RGTR, dt, plotIO)
+function [ResNorm] = compareModelPerStrideFMC(p, p_bio, w, k, xMeas, walkVel, gaitCycle, bound, LgrfPos, RgrfPos, LgrfVec, RgrfVec, LgrfMag, RgrfMag, LLML, LGTR, RLML, RGTR, dt, plotIO)
 Wi = p_bio(1); l0 = p_bio(2);  m = p_bio(3); h = p_bio(4);
-K_ss = p_spring(1);  b_ss = p_spring(2); K_ds = p_spring(3); b_ds = p_spring(4);
 Vl_ss = p(1); Vs_ss = p(2);
 Vl_ds = p(3);
 Vs_bl = p(4); Vs_fl = p(5);
 J = p(6:8);
 l_preload = p(9);
+K_ss = p(10);  b_ss = p(11);  K_ds = p(12); b_ds = p(13);
 
-p = {0, 0, 0, 0, Wi, 0, h, l0, [], [], [], [], [], []};
+p = {0, 0, 0, 0, Wi, 0, h, l0+l_preload, [], [], [], [], [], []};
 grfModel = cat(3, nan(3, 2, k(1)-1), nan(3, 2,length(k)));
 legLenModel = [nan(2, k(1)-1), nan(2,length(k))];
 k_switch = [];
 linMult = [0];
-ResNorm = 0;
 
 ki = k(1);
 xModel = [zeros(14, k(1)-1), xMeas(:,1), zeros(14,length(k)-1)];
-postResetFlag = false;
-initialiseFlag = false;
-k_next_init = ki;
 while ki < k(end)
     k1 = ki;
     switch gaitCycle(1)
@@ -57,37 +53,14 @@ while ki < k(end)
             end
             gaitCycle = circshift(gaitCycle, -1);
         case "lDSr"
-            if postResetFlag
-                xModelRes = w*(xModel(:,k_next_init:k_end) - xMeas(:,(k_next_init:k_end)-k(1)+1))*diag((1:(k_end-k_next_init+1)).^2);
-                xModelRes(isnan(xModelRes)) = 1e7;
-                xModelResNorm = norm(xModelRes, "fro")^2;
-                ResNorm = ResNorm + xModelResNorm;
-
-                postResetFlag = false;
-                initialiseFlag = true;
-                ki = k_next_init;
-                gaitCycle = circshift(gaitCycle, 2);
-                continue
-            end
-
-            if initialiseFlag
-                xModel(:, ki) = xMeas(:,ki-k(1)+1); % reinitialise
-                initialiseFlag = false;
-                postResetFlag = false;
-            else
-                xModel(:, ki) = diag([1 1 1, velReset(1:3), 1 1 1 1, velReset(4:7)])*xModel(:, ki); % apply reset map
-                k_next_init = ki;
-                postResetFlag = true;
-            end
-
             k_end = ki+ find(LgrfMag(ki:end) < bound, 1);
             k_switch = [k_switch k_end];
             linMult = [linMult 1:(k_end-ki)];
             lF = mean(LgrfPos(k1:k_end,1:2) + (walkVel(1:2)'*(0:(k_end-k1)))'*dt, 1, "omitnan");
             rF = mean(RgrfPos(k1:k_end,1:2) + (walkVel(1:2)'*(0:(k_end-k1)))'*dt, 1, "omitnan");
 
-            
-            
+            % reinitialise
+            xModel(:, ki) = xMeas(:,ki-k(1)+1);
             for ki = ki:k_end
                 lFcur = lF-walkVel(1:2)*dt*(ki-k1);
                 rFcur = rF-walkVel(1:2)*dt*(ki-k1);
@@ -102,37 +75,14 @@ while ki < k(end)
             end
             gaitCycle = circshift(gaitCycle, -1);
         case "rDSl"
-            if postResetFlag
-                xModelRes = w*(xModel(:,k_next_init:k_end) - xMeas(:,(k_next_init:k_end)-k(1)+1))*diag((1:(k_end-k_next_init+1)).^2);
-                xModelRes(isnan(xModelRes)) = 1e7;
-                xModelResNorm = norm(xModelRes, "fro")^2;
-                ResNorm = ResNorm + xModelResNorm;
-
-                postResetFlag = false;
-                initialiseFlag = true;
-                ki = k_next_init;
-                gaitCycle = circshift(gaitCycle, 2);
-                continue
-            end
-
-            if initialiseFlag
-                xModel(:, ki) = xMeas(:,ki-k(1)+1); % reinitialise
-                initialiseFlag = false;
-                postResetFlag = false;
-            else
-                xModel(:, ki) = diag([1 1 1, velReset(1:3), 1 1 1 1, velReset(4:7)])*xModel(:, ki); % apply reset map
-                k_next_init = ki;
-                postResetFlag = true;
-            end
-
             k_end = ki+ find(RgrfMag(ki:end) < bound, 1);
             k_switch = [k_switch k_end];
             linMult = [linMult 1:(k_end-ki)];
             lF = mean(LgrfPos(k1:k_end,1:2) + (walkVel(1:2)'*(0:(k_end-k1)))'*dt, 1, "omitnan");
             rF = mean(RgrfPos(k1:k_end,1:2) + (walkVel(1:2)'*(0:(k_end-k1)))'*dt, 1, "omitnan");
 
-             % apply reset map
-            xModel(:, ki) = diag([0 0 0, velReset(1:3), 0 0 0 0, velReset(4:7)])*xModel(:, ki);
+            % reinitialise
+            xModel(:, ki) = xMeas(:,ki-k(1)+1);
             for ki = ki:k_end
                 lFcur = lF-walkVel(1:2)*dt*(ki-k1);
                 rFcur = rF-walkVel(1:2)*dt*(ki-k1);
@@ -150,9 +100,13 @@ while ki < k(end)
     end
 end
 
+xModel = xModel(:,k(1:end-1));
+xModelRes = w*(xModel - xMeas)*diag(linMult(2:(length(xModel)+1))'.^2);
+xModelRes(isnan(xModelRes)) = 1e7;
+xModelResNorm = norm(xModelRes, "fro")^2;
 
 
-
+ResNorm = xModelResNorm;
 
 if plotIO
     t = k*dt;
@@ -247,6 +201,7 @@ if plotIO
     TestEnd = k(end);
 
     figure()
+    title("Model training - Reinitialised at every foot placement")
     subplot(2,2,1);
     plot(t(1:end-1)', xMeas(1,1:(TestEnd-k(1)))', 'r--','DisplayName',"Meas - x")
     hold on
@@ -262,6 +217,7 @@ if plotIO
     end
     xlabel("seconds")
     ylabel("meters")
+    title("CoM position")
     ylim([-0.5 2])
 
     subplot(2,2,2);
@@ -273,6 +229,9 @@ if plotIO
     plot(t(1:end-1)', xModel(5,:)', 'b-.','DisplayName',"Model - dy")
     plot(t(1:end-1)', xModel(6,:)', 'b','DisplayName',"Model - dz")
     legend('AutoUpdate', 'off')
+    xlabel("seconds")
+    ylabel("meters/second")
+    title("CoM velocity")
     ylim([-2 2])
 
     subplot(2,2,3);
@@ -286,6 +245,8 @@ if plotIO
     plot(t(1:end-1)', xModel(9,:)', 'b-.','DisplayName',"Model - q2")
     plot(t(1:end-1)', xModel(10,:)', 'b:','DisplayName',"Model - q3")
     legend
+    xlabel("seconds")
+    title("Rotation quaternion")
     ylim([-1.5 1.5])
 
     subplot(2,2,4);
@@ -299,6 +260,8 @@ if plotIO
     plot(t(1:end-1)', xModel(13,:)', 'b-.','DisplayName',"Model - dq2")
     plot(t(1:end-1)', xModel(14,:)', 'b:','DisplayName',"Model - dq3")
     legend
+    xlabel("seconds")
+    title("First derivative quaternion")
     ylim([-2 2])
 end
 
