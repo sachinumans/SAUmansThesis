@@ -1,13 +1,13 @@
 %% Load data
 clc; close all;
+clearvars -except data
 if exist("data","var") ~= 1
-    clear;
     load([pwd '\..\..\human-walking-biomechanics\Level 3 - MATLAB files\Level 3 - MATLAB files\All Strides Data files\p6_AllStridesData.mat'])
 end
 
-Trial = 8; %randi(33);
-walkVel = [0 -1.1 0];
-k = (1:(120*10))+2820;
+Trial = 11; %randi(33);
+walkVel = [0 -1.6 0];
+k = (1:(120*10))+1400;
 t = data(Trial).Time.TIME(k);% k/120;
 dt = 1/120;
 
@@ -74,20 +74,20 @@ Wi = mean(nWi);
 nhVec = COM - (LGTR + 0.5*(RGTR-LGTR));
 h = mean(vecnorm(nhVec, 2, 2));
 %% Bio params: invariant
-l0 = max(xMeas(3,:)) - h; % Real meas = 0.94
+l0 = max(xMeas(3,:)) - h;
 
 
 %% Training
 [k_step, realStep] = getStepTime(k, xMeas, walkVel, LgrfPos, RgrfPos, LgrfVec, RgrfVec, gaitCycle, bound, dt);
 controlStep = [];
 for idx = k_step-k(1)
-    [nextF, ~] = StepControllerFPE(xMeas(:,idx), l0, Wi, h, [0 -1.1 0]);
+    [nextF, ~] = StepControllerFPE(xMeas(:,idx), l0, Wi, h, walkVel);
     controlStep = [controlStep nextF];
 end
 
 controlParam = [mean(abs(realStep(:,1)))/mean(abs(controlStep(1,:))), abs(mean(realStep(:,2))-mean(controlStep(2,:)))];
 %%
-figure()
+r = figure();
 subplot(2,2,1)
 plot(realStep(:,1), 'bx'); hold on
 plot(controlStep(1,:)*controlParam(1), 'rx')
@@ -108,7 +108,7 @@ k = (1:(120*12))+k(end);
 t = data(Trial).Time.TIME(k);% k/120;
 dt = 1/120;
 
-%% Extract data
+%% Extract validation data
 SACR = data(Trial).TargetData.SACR_pos_proc(k, 1:3);
 LASI = data(Trial).TargetData.LASI_pos_proc(k, 1:3);
 RASI = data(Trial).TargetData.RASI_pos_proc(k, 1:3);
@@ -124,7 +124,7 @@ RGTR = data(Trial).TargetData.RGTR_pos_proc(k, 1:3);
 LLML = data(Trial).TargetData.LLML_pos_proc(k, 1:3);
 RLML = data(Trial).TargetData.RLML_pos_proc(k, 1:3);
 
-%% Determine initial state
+%% Determine initial validation state
 initGRFmagL = norm(LgrfVec(k(1),:));
 initGRFmagR = norm(RgrfVec(k(1),:));
 
@@ -141,10 +141,10 @@ end
 xMeasVal = meas2state(data, Trial, k);
 
 %%
-[k_stepVal, realStepVal] = getStepTime(k, xMeasVal, walkVel, LgrfPos, RgrfPos, LgrfVec, RgrfVec, gaitCycle, bound, dt);
+[k_stepVal, realStepVal, k_liftVal] = getStepTime(k, xMeasVal, walkVel, LgrfPos, RgrfPos, LgrfVec, RgrfVec, gaitCycle, bound, dt);
 controlStepVal = [];
 for idx = k_stepVal-k(1)
-    [nextF, ~] = StepControllerFPE(xMeasVal(:,idx), l0, Wi, h, [0 -1.1 0]);
+    [nextF, ~] = StepControllerFPE(xMeasVal(:,idx), l0, Wi, h, walkVel);
     controlStepVal = [controlStepVal nextF];
 end
 
@@ -155,7 +155,7 @@ plot(k_stepVal-k(1), controlStepVal(1,:)*controlParam(1), 'rx','DisplayName',"Co
 title("x Validation")
 
 
-%% Decision making
+%% Foot placement decision making
 L = []; F = [];
 for idx = 1:length(k)-1
     [F_, L_] = StepControllerFPE(xMeasVal(:,idx), l0, Wi, h, walkVel);
@@ -163,34 +163,101 @@ for idx = 1:length(k)-1
     F = [F F_];
 end
 
-subplot(2,2,2)
-plot(F(1,:)*controlParam(1),'DisplayName',"Controller - continuous")
-legend('AutoUpdate','off')
-
+% ----------- OLD UNUSED FILTERS ---------------
 % Llp = lowpass(L,2.5,120,'Steepness',0.95, 'ImpulseResponse','iir');
-lpFilt = designfilt('lowpassiir','PassbandFrequency',2.5,'StopbandFrequency', 3,...
-                    'PassbandRipple',0.2,'StopbandAttenuation', 65, ...
-                    'SampleRate', 120,'DesignMethod','cheby2');
-Llp = filtfilt(lpFilt, L);
 
+% lpFiltNC = designfilt('lowpassiir','PassbandFrequency',2.5,'StopbandFrequency', 3,...
+%                     'PassbandRipple',0.2,'StopbandAttenuation', 65, ...
+%                     'SampleRate', 120,'DesignMethod','cheby2');
+% LlpNC = filtfilt(lpFiltNC, L);
+
+% s = tf('s');
+% tfFilt = s/(s+1)/(s+4);
+% [b,a] = sos2tf(lpFiltNC.Coefficients);
+% tfFilt = tf(b, a);
+% sysFiltC = ss(tfFilt);
+% sysFilt = c2d(sysFiltC, 1/120)/getPeakGain(sysFiltC)*3;
+% \\\\\\\\\\\ OLD UNUSED FILTERS \\\\\\\\\\\\\\\\\
+
+% ------------- Filter design
+Fpass = 3;  % Passband Frequency
+Fstop = 5;    % Stopband Frequency
+Apass = 1;    % Passband Ripple (dB)
+Astop = 60;   % Stopband Attenuation (dB)
+Fs    = 120;  % Sampling Frequency
+
+hF = fdesign.lowpass('fp,fst,ap,ast', Fpass, Fstop, Apass, Astop, Fs);
+
+Hd = design(hF, 'cheby2', ...
+    'MatchExactly', 'passband');
+% -------------
+
+[A, B, C, D] = Hd.ss;
+sysFilt = -ss(A, B, C, D, 1/120);
+lpFilt = @(x, u) [sysFilt.A*x + sysFilt.B*u;...
+                    sysFilt.C*x + sysFilt.D*u];
+
+figure(); bode(sysFilt)
+
+figure(r)
 dL = diff(L, 1)*120;
 ddL = diff(L, 2)*120^2;
-dLlp = diff(Llp, 1)*120;
-ddLlp = diff(Llp, 2)*120^2;
 
 %%
-zcD1idx = k(dLlp(1:end-1).*dLlp(2:end) <0)-k(1);
-stepflag = zcD1idx(ddLlp(zcD1idx) > -0.005);
-stepflag = stepflag(diff(stepflag)>30);
+ws = 2*120;
+Llp_mem = L(ws-2:ws);
+stepcooldown = 0;
+liftcooldown = 0;
+stepflag = [];
+liftflag = [];
+x = zeros(size(sysFilt.A, 1), 1);
+Llp_causal = [];
+dLlp_causal = [];
+ddLlp_causal = [];
+for idx = ws+1:length(L)
+    fi = lpFilt(x, L(idx)-mean(L(idx-ws:idx)));
+    x = fi(1:end-1);
+    Llp_mem = circshift(Llp_mem, -1); Llp_mem(3) = fi(end);
 
+    ZeroCrossing = (Llp_mem(3)*Llp_mem(2)) < 0;
+    dLlp_causal_mem = (Llp_mem(3)-Llp_mem(2))*120;
+    if ZeroCrossing && dLlp_causal_mem > -0.005 && liftcooldown < 0
+        liftflag = [liftflag idx];
+        liftcooldown = 50;
+    end
 
-subplot(2,2,4)
-plot(nan, 'r--', 'LineWidth',1.1, 'DisplayName',"Detected steptime"); hold on
-plot(nan, 'k', 'DisplayName',"Real steptime")
+    FDZeroCrossing = (Llp_mem(2)-Llp_mem(1))*(Llp_mem(3)-Llp_mem(2)) < 0;
+    ddLlp_causal_mem = ((Llp_mem(3)-Llp_mem(2))*120 - (Llp_mem(2)-Llp_mem(1))*120)*120;
+    if FDZeroCrossing && ddLlp_causal_mem > -0.005 && stepcooldown < 0
+        stepflag = [stepflag idx];
+        stepcooldown = 50;
+    end
+
+    stepcooldown = stepcooldown -1;
+    liftcooldown = liftcooldown -1;
+
+    Llp_causal = [Llp_causal fi(end)];
+    dLlp_causal = [dLlp_causal dLlp_causal_mem];
+    ddLlp_causal = [ddLlp_causal ddLlp_causal_mem];
+end
+%%
+subplot(2,2,2)
+plot(F(1,:)*controlParam(1), 'Color', [0.9290 0.6940 0.1250],'DisplayName',"Controller - continuous")
+plot(stepflag, F(1,stepflag)*controlParam(1),'ro','DisplayName',"Step estimate")
 legend('AutoUpdate','off')
-xline(stepflag, 'r--', 'LineWidth',1.1)
-xline(k_stepVal-k(1))
-plot(F(2,:) + controlParam(2))
+
+subplot(2,2,4); hold on
+% plot(nan, 'Color', [1 0 0], 'DisplayName',"Detected steptime"); hold on
+% plot(nan, 'Color', [0 0 0], 'LineWidth',1.1, 'DisplayName',"Real steptime")
+% plot(nan, '--', 'Color', [1 0 0], 'DisplayName',"Detected lifttime"); hold on
+% plot(nan, '--', 'Color', [0 0 0], 'LineWidth',1.1, 'DisplayName',"Real lifttime")
+plot(stepflag, F(2,stepflag) + controlParam(2), 'ro', 'DisplayName',"Estimated step")
+% legend('AutoUpdate','off')
+% xline(k_stepVal-k(1), 'Color', [0 0 0 0.3], 'LineWidth',1.1)
+% xline(stepflag, 'Color', [1 0 0 0.3])
+% xline(k_liftVal-k(1), '--', 'Color', [0 0 0 0.3], 'LineWidth',1.1)
+% xline(liftflag, '--', 'Color', [1 0 0 0.3])
+plot(F(2,:) + controlParam(2), 'Color', [0.9290 0.6940 0.1250])
 plot(k_stepVal-k(1), realStepVal(:,2), 'bx'); hold on
 plot(k_stepVal-k(1), controlStepVal(2,:) + controlParam(2), 'rx')
 title("y Validation")
@@ -203,51 +270,67 @@ P1 = P2(1:length(k)/2+1);
 P1(2:end-1) = 2*P1(2:end-1);
 f = 120*(0:(length(k)/2))/length(k);
 
-Ylp = fft(Llp-mean(Llp));
+Ylp = fft(Llp_causal-mean(Llp_causal));
 P2lp = abs(Ylp/length(k));
 P1lp = P2lp(1:length(k)/2+1);
 P1lp(2:end-1) = 2*P1lp(2:end-1);
 
 figure();
-subplot(2,2,1)
-plot(L,'DisplayName',"L"); hold on
-plot(Llp,'DisplayName',"LP(L)")
-plot(nan, 'k','DisplayName',"Real steptime")
-plot(nan, 'r--','DisplayName',"Detected steptime")
+subplot(2,1,1)
+plot(L-mean(L),'DisplayName',"L"); hold on
+plot(ws+1:length(L), Llp_causal,'DisplayName',"LP(L)")
+plot(nan, 'r', 'DisplayName',"Detected steptime"); hold on
+plot(nan, 'k', 'LineWidth',1.1, 'DisplayName',"Real steptime")
+plot(nan, 'r--', 'DisplayName',"Detected lifttime"); hold on
+plot(nan, 'k--', 'LineWidth',1.1, 'DisplayName',"Real lifttime")
 legend('AutoUpdate', 'off')
-xline(k_stepVal-k(1))
+xline(k_stepVal-k(1), 'k', 'LineWidth',1.1)
+xline(stepflag, 'r')
+xline(k_liftVal-k(1), 'k--', 'LineWidth',1.1)
+xline(liftflag, 'r--')
 xlabel("Timestep")
 ylabel("Meters")
-xline(stepflag, 'r--', 'LineWidth',1.1)
 
-subplot(2,2,2)
+subplot(2,3,4)
 plot(dL,'DisplayName','dL'); hold on
-plot(dLlp,'DisplayName',"d(LP(L))");
+plot(ws+1:length(L), dLlp_causal,'DisplayName',"d(LP(L))");
 legend('AutoUpdate', 'off')
-xline(k_stepVal-k(1))
+% xline(k_stepVal-k(1))
+ylim([-0.5 0.5])
 
-subplot(2,2,4)
+subplot(2,3,5)
 plot(ddL,'DisplayName',"ddL"); hold on
-plot(ddLlp,'DisplayName',"dd(LP(L))");
+plot(ws+1:length(L), ddLlp_causal,'DisplayName',"dd(LP(L))");
 legend('AutoUpdate', 'off')
-xline(k_stepVal-k(1))
+% xline(k_stepVal-k(1))
 xlabel("Timestep")
 ylabel("Meters")
+ylim([-20 20])
 
-subplot(2,2,3)
+subplot(2,3,6)
 plot(f,P1);
 hold on
 plot(f, P1lp)
 xlim([0 20])
 xlabel("Frequency")
-legend("Unfiltered FFT", "Filtered FFT")
+legend(["Unfiltered FFT", "Filtered FFT"], 'AutoUpdate', 'off')
+xline(Fpass, 'k-', {'Passband'})
 
+%% Debug test
+v = vecnorm(xMeasVal(4:6, :), 2, 1);
+l = norm([l0+h, 0.5*Wi]);
+p = 1- (v.^2)/2/9.81/l;
+L_math = sqrt((xMeasVal(3,:).^2)./(p.^2));
+
+figure()
+plot(L, 'b'); hold on
+plot(L_math, 'r--')
 %%
-function [k_step, realStep] = getStepTime(k, xMeas, walkVel, LgrfPos, RgrfPos, LgrfVec, RgrfVec, gaitCycle, bound, dt) 
+function [k_step, realStep, k_Lift] = getStepTime(k, xMeas, walkVel, LgrfPos, RgrfPos, LgrfVec, RgrfVec, gaitCycle, bound, dt) 
 LgrfMag = vecnorm(LgrfVec', 2, 1);
 RgrfMag = vecnorm(RgrfVec', 2, 1);
 
-k_step = []; realStep = [];
+k_step = []; realStep = []; k_Lift = [];
 ki = k(1); idx = 1;
 while ki < k(end)-30
     k1 = ki;
@@ -255,24 +338,26 @@ while ki < k(end)-30
         case "lSS"
             [~, ki_next] = find(RgrfMag(ki:end)>bound, 1);
             k_end = ki+ ki_next;
+            k_Lift = [k_Lift ki];
             
             gaitCycle = circshift(gaitCycle, -1);
         case "rSS"
             [~, ki_next] = find(LgrfMag(ki:end)>bound, 1);
             k_end = ki+ ki_next;
+            k_Lift = [k_Lift ki];
             
             gaitCycle = circshift(gaitCycle, -1);
         case "lDSr"
             [~, ki_next] = find(LgrfMag(ki:end)<bound, 1);
             k_end = ki+ ki_next;
-            k_step = [k_step k_end];
+            k_step = [k_step ki];
             realStep = [realStep; mean(RgrfPos(k1:k_end,1:2) + (walkVel(1:2)'*(0:(k_end-k1)))'*dt, 1, "omitnan") - xMeas(1:2, idx)'];
             
             gaitCycle = circshift(gaitCycle, -1);
         case "rDSl"
             [~, ki_next] = find(RgrfMag(ki:end)<bound, 1);
             k_end = ki+ ki_next;
-            k_step = [k_step k_end];
+            k_step = [k_step ki];
             realStep = [realStep; mean(LgrfPos(k1:k_end,1:2) + (walkVel(1:2)'*(0:(k_end-k1)))'*dt, 1, "omitnan") - xMeas(1:2, idx)'];
             
             gaitCycle = circshift(gaitCycle, -1);

@@ -16,8 +16,12 @@ d = x(3)/tan(phi);
 
 nextF = nVel(1:2)./norm(nVel(1:2))*d;
 
-L = norm([d x(3)]);
-stepflag = L < l;
+%%
+nVel_detrend = x(4:6);
+phi_detrend = asin(1 - (norm(nVel_detrend)^2)/(2*9.81*l));
+
+d_detrend = x(3)/tan(phi_detrend);
+L = norm([d_detrend x(3)]);
 
 end
 
