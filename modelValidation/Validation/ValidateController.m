@@ -7,7 +7,7 @@ end
 
 Trial = 11; %randi(33);
 walkVel = [0 -1.6 0];
-k = (1:(120*10))+1400;
+k = (1:(120*10))+1230;
 t = data(Trial).Time.TIME(k);% k/120;
 dt = 1/120;
 
@@ -78,30 +78,9 @@ l0 = max(xMeas(3,:)) - h;
 
 
 %% Training
-[k_step, realStep] = getStepTime(k, xMeas, walkVel, LgrfPos, RgrfPos, LgrfVec, RgrfVec, gaitCycle, bound, dt);
-controlStep = [];
-for idx = k_step-k(1)
-    [nextF, ~] = StepControllerFPE(xMeas(:,idx), l0, Wi, h, walkVel);
-    controlStep = [controlStep nextF];
-end
+p_bio = [Wi, l0, m, h];
+[controlParam, lpFilt, nFilt] = getFPEparams(data, Trial, p_bio, walkVel, k, m*9.81*0.1, dt, true);
 
-controlParam = [mean(abs(realStep(:,1)))/mean(abs(controlStep(1,:))), abs(mean(realStep(:,2))-mean(controlStep(2,:)))];
-%%
-r = figure();
-subplot(2,2,1)
-plot(realStep(:,1), 'bx'); hold on
-plot(controlStep(1,:)*controlParam(1), 'rx')
-% legend("Measured", "Controller")
-title("x Training")
-ylabel("Meter")
-
-subplot(2,2,3)
-plot(realStep(:,2), 'bx'); hold on
-plot(controlStep(2,:) + controlParam(2), 'rx')
-% legend("Measured", "Controller")
-title("y Training")
-xlabel("Step")
-ylabel("Meter")
 
 %% Validation
 k = (1:(120*12))+k(end);
@@ -149,7 +128,8 @@ for idx = k_stepVal-k(1)
 end
 
 %%
-subplot(2,2,2)
+figure()
+subplot(2,1,1)
 plot(k_stepVal-k(1), realStepVal(:,1), 'bx','DisplayName',"Measured"); hold on
 plot(k_stepVal-k(1), controlStepVal(1,:)*controlParam(1), 'rx','DisplayName',"Controller")
 title("x Validation")
@@ -179,27 +159,9 @@ end
 % sysFilt = c2d(sysFiltC, 1/120)/getPeakGain(sysFiltC)*3;
 % \\\\\\\\\\\ OLD UNUSED FILTERS \\\\\\\\\\\\\\\\\
 
-% ------------- Filter design
-Fpass = 3;  % Passband Frequency
-Fstop = 5;    % Stopband Frequency
-Apass = 1;    % Passband Ripple (dB)
-Astop = 60;   % Stopband Attenuation (dB)
-Fs    = 120;  % Sampling Frequency
 
-hF = fdesign.lowpass('fp,fst,ap,ast', Fpass, Fstop, Apass, Astop, Fs);
+% figure(); bode(sysFilt)
 
-Hd = design(hF, 'cheby2', ...
-    'MatchExactly', 'passband');
-% -------------
-
-[A, B, C, D] = Hd.ss;
-sysFilt = -ss(A, B, C, D, 1/120);
-lpFilt = @(x, u) [sysFilt.A*x + sysFilt.B*u;...
-                    sysFilt.C*x + sysFilt.D*u];
-
-figure(); bode(sysFilt)
-
-figure(r)
 dL = diff(L, 1)*120;
 ddL = diff(L, 2)*120^2;
 
@@ -210,7 +172,7 @@ stepcooldown = 0;
 liftcooldown = 0;
 stepflag = [];
 liftflag = [];
-x = zeros(size(sysFilt.A, 1), 1);
+x = zeros(nFilt, 1);
 Llp_causal = [];
 dLlp_causal = [];
 ddLlp_causal = [];
@@ -241,12 +203,12 @@ for idx = ws+1:length(L)
     ddLlp_causal = [ddLlp_causal ddLlp_causal_mem];
 end
 %%
-subplot(2,2,2)
+subplot(2,1,1)
 plot(F(1,:)*controlParam(1), 'Color', [0.9290 0.6940 0.1250],'DisplayName',"Controller - continuous")
 plot(stepflag, F(1,stepflag)*controlParam(1),'ro','DisplayName',"Step estimate")
 legend('AutoUpdate','off')
 
-subplot(2,2,4); hold on
+subplot(2,1,2); hold on
 % plot(nan, 'Color', [1 0 0], 'DisplayName',"Detected steptime"); hold on
 % plot(nan, 'Color', [0 0 0], 'LineWidth',1.1, 'DisplayName',"Real steptime")
 % plot(nan, '--', 'Color', [1 0 0], 'DisplayName',"Detected lifttime"); hold on
@@ -314,7 +276,7 @@ plot(f, P1lp)
 xlim([0 20])
 xlabel("Frequency")
 legend(["Unfiltered FFT", "Filtered FFT"], 'AutoUpdate', 'off')
-xline(Fpass, 'k-', {'Passband'})
+% xline(Fpass, 'k-', {'Passband'})
 
 %% Debug test
 v = vecnorm(xMeasVal(4:6, :), 2, 1);
