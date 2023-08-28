@@ -5,8 +5,8 @@ if exist("data","var") ~= 1
     load([pwd '\..\..\human-walking-biomechanics\Level 3 - MATLAB files\Level 3 - MATLAB files\All Strides Data files\p6_AllStridesData.mat'])
 end
 
-Trial = 11; %randi(33);
-walkVel = [0 -1.6 0];
+Trial = 8; %randi(33);
+walkVel = [0 -1.1 0];
 k = (1:(120*10))+1230;
 t = data(Trial).Time.TIME(k);% k/120;
 dt = 1/120;

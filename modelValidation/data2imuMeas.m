@@ -28,22 +28,23 @@ meas = [];
 measNames = [];
 
 for s = ["UB_ASI", "UB_AC", "Lfoot", "Rfoot"]
-% if any(contains(sensors, s, "IgnoreCase", true))
-%     switch s
-%         case "UB_ASI"
-%             meas = [meas; ];
-%         case "UB_AC"
-%             meas = [meas; ];
-%         case "Lfoot"
-%             meas = [meas; ];
-%         case "Rfoot"
-%             meas = [meas; ];
-%     end
-%     measNames = [measNames; s];
-% end
+if any(contains(sensors, s, "IgnoreCase", true))
+    switch s
+        case "UB_ASI"
+            IMUmeas = trunkmarkers2imu(LASI, RASI, LAC, RAC, k, 0);
+        case "UB_AC"
+            IMUmeas = trunkmarkers2imu(LASI, RASI, LAC, RAC, k, 1);
+        case "Lfoot"
+            IMUmeas = footmarkers2imu(LLML, LMML, L5TH, k, "Left");
+        case "Rfoot"
+            IMUmeas = footmarkers2imu(LLML, LMML, L5TH, k, "Right");
+    end
 
-IMUmeas = footmarkers2imu(LLML, LMML, L5TH, k, "Left");
-IMUmeas = trunkmarkers2imu(LASI, RASI, LAC, RAC, k, 0)
+    noisyMeas = IMUmeas + blkdiag(eye(3).*sqrt(varAcc), eye(3).*sqrt(varGyr))*randn(6,1);
+
+    meas = [meas; noisyMeas];
+    measNames = [measNames; s];
+end
 
 end
 
@@ -52,7 +53,7 @@ end
 function IMUmeas = footmarkers2imu(LML, MML, Toe, k, side)
 imuPos = MML(k-2:k,:) + 2/3.* (Toe(k-2:k,:) - MML(k-2:k,:));
 
-accN = diff(imuPos, 2, 1).*120^2; % Acceleration in frame N
+accN = diff(imuPos, 2, 1).*120^2 + [0;0;-9.81]; % Acceleration in frame N
 
 % Orientation
 if side == "Left"
@@ -86,7 +87,7 @@ X = Toe(k-1,:) - LML(k-1,:);
 
 Z = cross(X, Y);
 Y = cross(Z, X);
-]
+
 fRn_prev = diag(1./vecnorm([X; Y; Z], 2, 2))*[X; Y; Z];
 NqF_prev = rotm2quat(fRn_prev');
 
@@ -122,7 +123,7 @@ CASI = (LASI(k-2:k,:) + RASI(k-2:k,:))./2;
 CAC = (LAC(k-2:k,:) + RAC(k-2:k,:))./2;
 imuPos = CASI + hRatio.* (CAC - CASI);
 
-accN = diff(imuPos, 2, 1).*120^2; % Acceleration in frame N
+accN = diff(imuPos, 2, 1).*120^2 + [0,0,-9.81]; % Acceleration in frame N
 
 % Orientation
 Y = LASI(k,:)-RASI(k,:);

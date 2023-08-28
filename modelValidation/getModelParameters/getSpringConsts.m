@@ -14,11 +14,11 @@ RgrfMagPar = dot(RgrfVec(k, :)', -(RLML-RGTR)')./Rl;
 
 k_switch = [];
 ki = k(1); idx = 1;
-while ki < k(end)-30
+while ki < k(end)
     switch gaitCycle(1)
         case "lSS"
             [~, ki_next] = findpeaks(LgrfMag(ki:end),'MinPeakHeight',m*9.81*0.8,'NPeaks',1);
-            k_end = ki+ ki_next;
+            k_end = min(ki+ ki_next, k(end));
             k_switch = [k_switch k_end];
             A(idx:(idx+k_end-ki)) = Ll(idx:(idx+k_end-ki))';
             c(idx:(idx+k_end-ki)) = LgrfMagPar(idx:(idx+k_end-ki));
@@ -26,7 +26,7 @@ while ki < k(end)-30
             gaitCycle = circshift(gaitCycle, -1);
         case "rSS"
             [~, ki_next] = findpeaks(RgrfMag(ki:end),'MinPeakHeight',m*9.81*0.8,'NPeaks',1);
-            k_end = ki+ ki_next;
+            k_end = min(ki+ ki_next, k(end));
             k_switch = [k_switch k_end];
             A(idx:(idx+k_end-ki)) = Rl(idx:(idx+k_end-ki))';
             c(idx:(idx+k_end-ki)) = RgrfMagPar(idx:(idx+k_end-ki));
@@ -34,7 +34,7 @@ while ki < k(end)-30
             gaitCycle = circshift(gaitCycle, -1);
         case "lDSr"
             [~, ki_next] = findpeaks(RgrfMag(ki:end),'MinPeakHeight',m*9.81*0.8,'NPeaks',1);
-            k_end = ki+ ki_next;
+            k_end = min(ki+ ki_next, k(end));
             k_switch = [k_switch k_end];
             Ads(idx:(idx+k_end-ki), :) = [Ll(idx:(idx+k_end-ki))' Rl(idx:(idx+k_end-ki))'];
             cds(idx:(idx+k_end-ki), :) = [LgrfMagPar(idx:(idx+k_end-ki))' RgrfMagPar(idx:(idx+k_end-ki))'];
@@ -42,7 +42,7 @@ while ki < k(end)-30
             gaitCycle = circshift(gaitCycle, -1);
         case "rDSl"
             [~, ki_next] = findpeaks(LgrfMag(ki:end),'MinPeakHeight',m*9.81*0.8,'NPeaks',1);
-            k_end = ki+ ki_next;
+            k_end = min(ki+ ki_next, k(end));
             k_switch = [k_switch k_end];
             Ads(idx:(idx+k_end-ki), :) = [Ll(idx:(idx+k_end-ki))' Rl(idx:(idx+k_end-ki))'];
             cds(idx:(idx+k_end-ki), :) = [LgrfMagPar(idx:(idx+k_end-ki))' RgrfMagPar(idx:(idx+k_end-ki))'];

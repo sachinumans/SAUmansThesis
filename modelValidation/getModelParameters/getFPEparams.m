@@ -57,7 +57,7 @@ for idx = k_step-k(1)
     controlStep = [controlStep nextF];
 end
 
-controlParam = [mean(abs(realStep(:,1)))/mean(abs(controlStep(1,:))), abs(mean(realStep(:,2))-mean(controlStep(2,:)))];
+controlParam = [mean(abs(realStep(:,1)))/mean(abs(controlStep(1,:))), (mean(realStep(:,2))-mean(controlStep(2,:)))];
 
 %% Filter design
 Fpass = 3;  % Passband Frequency

@@ -4,6 +4,10 @@ function [modelParams] = getModelParamsV9(data, Trial, k, WS, w, walkVel, BMthr,
 
 t = data(Trial).Time.TIME(k);% k/120;
 
+modelParams.Trial.Trial = Trial;
+modelParams.Trial.walkVel = walkVel;
+modelParams.Trial.dt = dt;
+
 %% Extract data
 SACR = data(Trial).TargetData.SACR_pos_proc(k, 1:3);
 LASI = data(Trial).TargetData.LASI_pos_proc(k, 1:3);
@@ -127,31 +131,33 @@ modelParams.vpp.Vl_ss = Popt(1); modelParams.vpp.Vs_ss = Popt(2);
 modelParams.vpp.Vl_ds = Popt(3);
 modelParams.vpp.Vs_bl = Popt(4); modelParams.vpp.Vs_fl = Popt(5);
 
-disp("Obtained body parameters, proceeding with obtaining reset map")
+% disp("Obtained body parameters, proceeding with obtaining reset map")
 
-%% Estimate reset map
-% save("debug_getResetMap.mat", 'Popt', 'p_bio', 'p_spring', 'w', 'k', 'xMeas', 'walkVel', 'gaitCycle', 'bound', 'LgrfPos', 'RgrfPos', 'LgrfVec', 'RgrfVec', 'LgrfMag', 'RgrfMag', 'LLML', 'LGTR', 'RLML', 'RGTR', 'dt')
-load debug_getResetMap.mat
-velResetInit = ga(@(velReset)compareModelPer2Strides(velReset, Popt, p_bio, p_spring, w, k, xMeas, walkVel, gaitCycle, bound, LgrfPos, RgrfPos, LgrfVec, RgrfVec, LgrfMag, RgrfMag, LLML, LGTR, RLML, RGTR, dt, false),...
-    7,[],[],[],[],...
-    -5*ones(1,7),...
-    5*ones(1,7), [],[],...
-    optimoptions('ga','UseParallel', true, 'UseVectorized', false,'MaxTime', 3/6*60));
-
-velReset = fmincon(@(velReset)compareModelPer2Strides(velReset, Popt, p_bio, p_spring, w, k, xMeas, walkVel, gaitCycle, bound, LgrfPos, RgrfPos, LgrfVec, RgrfVec, LgrfMag, RgrfMag, LLML, LGTR, RLML, RGTR, dt, false),...
-    velResetInit, [],[],[],[],...
-    -5*ones(1,7),5*ones(1,7), [],...
-    optimoptions('fmincon','UseParallel',true, 'OptimalityTolerance', 1e-20, 'FiniteDifferenceStepSize', 1e-3));
-modelParams.resetMap = diag([1 1 1, velReset(1:3), 1 1 1 1, velReset(4:7)]);
-
-compareModelPer2Strides(velReset, Popt, p_bio, p_spring, w, k, xMeas, walkVel, gaitCycle, bound, LgrfPos, RgrfPos, LgrfVec, RgrfVec, LgrfMag, RgrfMag, LLML, LGTR, RLML, RGTR, dt, true);
+% %% Estimate reset map
+% % save("debug_getResetMap.mat", 'Popt', 'p_bio', 'p_spring', 'w', 'k', 'xMeas', 'walkVel', 'gaitCycle', 'bound', 'LgrfPos', 'RgrfPos', 'LgrfVec', 'RgrfVec', 'LgrfMag', 'RgrfMag', 'LLML', 'LGTR', 'RLML', 'RGTR', 'dt')
+% load debug_getResetMap.mat
+% velResetInit = ga(@(velReset)compareModelPer2Strides(velReset, Popt, p_bio, p_spring, w, k, xMeas, walkVel, gaitCycle, bound, LgrfPos, RgrfPos, LgrfVec, RgrfVec, LgrfMag, RgrfMag, LLML, LGTR, RLML, RGTR, dt, false),...
+%     7,[],[],[],[],...
+%     -5*ones(1,7),...
+%     5*ones(1,7), [],[],...
+%     optimoptions('ga','UseParallel', true, 'UseVectorized', false,'MaxTime', 3/6*60));
+% 
+% velReset = fmincon(@(velReset)compareModelPer2Strides(velReset, Popt, p_bio, p_spring, w, k, xMeas, walkVel, gaitCycle, bound, LgrfPos, RgrfPos, LgrfVec, RgrfVec, LgrfMag, RgrfMag, LLML, LGTR, RLML, RGTR, dt, false),...
+%     velResetInit, [],[],[],[],...
+%     -5*ones(1,7),5*ones(1,7), [],...
+%     optimoptions('fmincon','UseParallel',true, 'OptimalityTolerance', 1e-20, 'FiniteDifferenceStepSize', 1e-3));
+% modelParams.resetMap = diag([1 1 1, velReset(1:3), 1 1 1 1, velReset(4:7)]);
+% 
+% compareModelPer2Strides(velReset, Popt, p_bio, p_spring, w, k, xMeas, walkVel, gaitCycle, bound, LgrfPos, RgrfPos, LgrfVec, RgrfVec, LgrfMag, RgrfMag, LLML, LGTR, RLML, RGTR, dt, true);
 %%
 disp("Obtained all body parameters, proceeding with obtaining foot placement estimator")
 
-FPEparam = getFPEparams(xMeas, WS, walkVel, p_bio, k, LgrfPos, RgrfPos, LgrfVec, RgrfVec, initGRFmagL, initGRFmagR, bound, dt, plotIO);
+[FPEparam, lpFilt, nFilt] = getFPEparams(data, Trial, p_bio, walkVel, k, bound, dt, true);
 
 modelParams.FPE.SW = FPEparam(1);
 modelParams.FPE.SL = FPEparam(2);
+modelParams.FPE.lpFilt = lpFilt;
+modelParams.FPE.nFilt = nFilt;
 
 disp("Obtained all model parameters")
 
