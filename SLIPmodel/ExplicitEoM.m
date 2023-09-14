@@ -516,7 +516,7 @@ ddq = EstarInv*Dstar;
 dx = [dC; ddC; dq; ddq];
 
 % Save function
-save("ExplEoM_rDSl_split.mat", "dx", "Ardsl", "Brdsl");
+% save("ExplEoM_rDSl_split.mat", "dx", "Ardsl", "Brdsl");
 vDS = {t, [x1 x2 x3 x4 x5 x6 x7 x8 x9 x10 x11 x12 x13 x14], [F1l,F2l], [F1r,F2r], Vl,Vs_bl,Vs_fl,h,Wi,l0,m, k,b, [j_in1,j_in2,j_in3]};
 matlabFunction(dx,'File','rDSl_split_eom','Vars', vDS)
 

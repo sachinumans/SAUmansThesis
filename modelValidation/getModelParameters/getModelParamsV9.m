@@ -100,7 +100,7 @@ Pga = ga(@(p)compareModelPerStrideGA(p, p_bio, p_spring, w, k, xMeas, walkVel, g
     9,[],[],[],[],...
     lb,...
     ub, [],[],...
-    optimoptions('ga','UseParallel', true, 'UseVectorized', false,'MaxTime', 1/6*60));
+    optimoptions('ga','UseParallel', true, 'UseVectorized', false,'MaxTime', 5*60));
 
 disp("Obtained initialisation body parameters, proceeding with fmincon")
 
@@ -113,7 +113,7 @@ Popt = fmincon(@(p)compareModelPerStrideFMC(p, p_bio, w, k, xMeas, walkVel, gait
 
 %%
 if plotIO
-compareModelPerStrideFMC(Popt, p_bio, w, k, xMeas, walkVel, gaitCycle, bound, LgrfPos, RgrfPos, LgrfVec, RgrfVec, LgrfMag, RgrfMag, LLML, LGTR, RLML, RGTR, dt, plotIO);
+resnormBeambod = compareModelPerStrideFMC(Popt, p_bio, w, k, xMeas, walkVel, gaitCycle, bound, LgrfPos, RgrfPos, LgrfVec, RgrfVec, LgrfMag, RgrfMag, LLML, LGTR, RLML, RGTR, dt, plotIO)
 drawnow
 end
 

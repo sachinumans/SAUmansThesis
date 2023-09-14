@@ -42,10 +42,10 @@ Trial = modelParams.Trial.Trial;
 walkVel = modelParams.Trial.walkVel;
 dt = modelParams.Trial.dt;
 
-LineariseModel(modelParams, S, dt);
+LineariseModel(modelParams, S);
 
 disp("Retrieved model")
-
+return
 %% Initialisation
 RgrfVec = data(Trial).Force.force2(1:10:end,:);
 RgrfPos = data(Trial).Force.cop2(10:10:end,:);
@@ -109,10 +109,10 @@ for k_ = 2:length(k)
     tic
     switch gaitCycle(1)
         case "lSS"
-            D = subs(Dl, SSsyms, [xhat(:, k_-1); uhat(:, end)]);
             A = subs(Al, SSsyms, [xhat(:, k_-1); uhat(:, end)]);
             B = subs(Bl, SSsyms, [xhat(:, k_-1); uhat(:, end)]);
             C = subs(Cl, SSsyms, [xhat(:, k_-1); uhat(:, end)]);
+            D = subs(Dl, SSsyms, [xhat(:, k_-1); uhat(:, end)]);
             uk = uhat(:, end);
         case "rSS"
             A = subs(Ar, SSsyms, [xhat(:, k_-1); uhat(:, end)]);
@@ -135,8 +135,8 @@ for k_ = 2:length(k)
     end
     toc
     %%
-    [xhat_kk, P_kk] = KFmeasurementUpdate(meas, xhat(:,k_-1), uk, P_kkm, C, D, Rcov);
-    [xhat(:,k_), P_kpk] = KFtimeUpdate(meas, xhat_kk, uk, P_kkm, A, B, C, D, Qcov, Scov, Rcov);
+    [xhat_kk, P_kk] = EKFmeasurementUpdate(meas, xhat(:,k_-1), uk, P_kkm, C, D, Rcov);
+    [xhat(:,k_), P_kpk] = EKFtimeUpdate(meas, xhat_kk, uk, P_kkm, A, B, C, D, Qcov, Scov, Rcov);
 
     % Phase change detection
     [nextF, L] = StepControllerFPE(xhat(:,k_), l0, Wi, h, [0;0;0]);
@@ -183,14 +183,5 @@ function [IO] = liftoffDetector(Llp_mem, liftcooldown)
     IO = ZeroCrossing && dLlp > -0.005 && liftcooldown < 0;
 end
 
-function [xhat_kk, P_kk] = KFmeasurementUpdate(y, xhat_kkm, u, P_kkm, C, D, R)
-K = P_kkm*C'/(R+C*P_kkm*C');
-P_kk = P_kkm - K*C*P_kkm;
-xhat_kk = xhat_kkm + K*(y - D*u - C*xhat_kkm);
-end
 
-function [xhat_kpk, P_kpk] = KFtimeUpdate(y, xhat_kk, u, P_kkm, A, B, C, D, Q, S, R)
-K = (S + A*P_kkm*C')/(R + C*P_kkm*C');
-P_kpk = A*P_kkm*A' + Q - K*(S + A*P_kkm*C')';
-xhat_kpk = A*xhat_kk + B*u + K*(y - D*u - C*xhat_kk);
-end
+
