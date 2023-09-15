@@ -10,15 +10,11 @@ sqrtP = chol(P,'lower');
 
 X_km1 = nan(nx, nx+1);
 X_km2 = nan(nx, nx);
+
 X_km1(:,1) = m;
-% parfor i = 1:nx
-%     X_km1(:, i+1) = m + c*sqrtP(:,i);
-% end
-% for i = 1:nx
-%     X_km2(:, i)   = m - c*sqrtP(:,i);
-% end
 X_km1(:, 2:nx+1) = m + c*sqrtP;
 X_km2 = m - c*sqrtP;
+
 X_km = [X_km1, X_km2];
 
 end

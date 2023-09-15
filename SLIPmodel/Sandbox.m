@@ -34,4 +34,6 @@ close all
 % [h, hlink] = plotGRFonBod(x(100,:)',p);
 
 
-animate_strides(T_sim, X_sim, t_switch, feetpos, p)
+% animate_strides(T_sim, X_sim, t_switch, feetpos, p)
+
+

@@ -1,0 +1,13 @@
+Subject Number	, Experiments 		,	Sex 	,	Age	, Leg Length (m), Treadmill velocity (m/s)
+1		,	AP and ML 	,       M	,    	36	,	0.96,		1.2  
+2		,	AP        	,       M 	,	26	,	1.01,		1.2 
+3		,	AP 		, 	F 	,	28	,	0.91,		1.1
+4		,	AP		, 	M	,    	20	,	0.97,		1.2 
+5		,	ML		, 	M	,   	27	,	1.07,		1.2 
+6		,	ML		, 	M	,    	26	,	0.96,		1.2 
+7		,	AP		, 	M	,    	24	,	0.96,		1.2 
+8		,	AP and ML 	,	M	,   	21	,	0.99,		1.2 
+9		,	AP		, 	M	,   	23	,	1.10,		1.2 
+10		,	ML		, 	F	,   	24	,	0.91,		1.2 
+11		,	AP and ML 	,	F	,   	25	,	0.91,		1.2 
+12		,	AP and ML 	,	F	,   	26	,	0.88,		1.2 

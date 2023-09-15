@@ -503,7 +503,7 @@ end
 % ---------
 h(Nfig) = figure(); Nfig = Nfig + 1;
 plot(nan, 'r', 'DisplayName',"Real");hold on
-plot(nan , 'b--', 'DisplayName',"EKF"); 
+plot(nan , 'b--', 'DisplayName',"UKF"); 
 legend("AutoUpdate","off")
 plot(T, x_real', 'r');
 plot(T, x_UKF1_clean' , 'b--');
@@ -514,7 +514,7 @@ title("UKF-I - states - Noiseless measurements")
 
 h(Nfig) = figure(); Nfig = Nfig + 1;
 plot(nan, 'r', 'DisplayName',"Real"); hold on
-plot(nan , 'b--', 'DisplayName',"EKF");
+plot(nan , 'b--', 'DisplayName',"UKF");
 legend("AutoUpdate","off")
 plot(T, nP_real, 'r'); 
 plot(T, nP_UKF1_clean, 'b--')
@@ -552,7 +552,7 @@ end
 % ---------
 h(Nfig) = figure(); Nfig = Nfig + 1;
 plot(nan, 'r', 'DisplayName',"Real");hold on
-plot(nan , 'b--', 'DisplayName',"EKF"); 
+plot(nan , 'b--', 'DisplayName',"UKF"); 
 legend("AutoUpdate","off")
 plot(T, x_real', 'r');
 plot(T, x_UKF1_noisy' , 'b--');
@@ -563,13 +563,64 @@ title("UKF-I - states - Noisy measurements")
 
 h(Nfig) = figure(); Nfig = Nfig + 1;
 plot(nan, 'r', 'DisplayName',"Real"); hold on
-plot(nan , 'b--', 'DisplayName',"EKF");
+plot(nan , 'b--', 'DisplayName',"UKF");
 legend("AutoUpdate","off")
 plot(T, nP_real, 'r'); 
 plot(T, nP_UKF1_noisy, 'b--')
 xlabel("Time / s")
 ylabel("Position / m")
 title("UKF-I - Pendulum tip position xyz - Noisy measurements")
+drawnow
+
+%% Unscented Kalman Filter I - noisy - van der Merwe
+% x_UKF1_noisy = [x0, nan(8,Tn-1)];
+x_UKF1_noisy_vdM = [[1; zeros(7,1)], nan(8,Tn-1)];
+Prob_UKF1_noisy_vdM = nan(8,8,Tn);
+Prob_UKF1_noisy_vdM(:,:,1) = 1e-5*eye(8);
+Scov = zeros(8,6);
+Qcov = 1e-13*eye(8);
+Rcov_noisy = blkdiag(eye(3).*varAcc, eye(3).*varGyr);
+
+sqrtQ = chol(Qcov);
+sqrtR = chol(Rcov_noisy);
+
+tic
+for k = 2:Tn
+
+    [x_UKF1_noisy_vdM(:,k), Prob_UKF1_noisy_vdM(:,:,k)] = UKF_I_vanderMerwe(@(t, x, nu) Pend3Dmodel_nonlinNumeric_dyns(t, x, nu, pars), ...
+        @(t, x, nu) Pend3Dmodel_nonlinNumeric_meas(t, x, nu, pars), x_UKF1_noisy_vdM(:,k-1), u(:, k-1)', u(:, k)', y_noisy(:,k), ...
+        Prob_UKF1_noisy_vdM(:,:,k-1), sqrtR, sqrtQ, alpha, beta, kappa);
+
+    x_UKF1_noisy_vdM(1:4,k) = x_UKF1_noisy_vdM(1:4,k)./norm(x_UKF1_noisy_vdM(1:4,k));
+end
+runTime.UKF_1_noisy_vdM = toc;
+
+nP_UKF1_noisy_vdM = nan(3,Tn);
+for i = 1:Tn
+    nP_UKF1_noisy_vdM(:,i) = state2P(x_UKF1_noisy(:,i), l);
+end
+
+% ---------
+h(Nfig) = figure(); Nfig = Nfig + 1;
+plot(nan, 'r', 'DisplayName',"Real");hold on
+plot(nan , 'b--', 'DisplayName',"UKF"); 
+legend("AutoUpdate","off")
+plot(T, x_real', 'r');
+plot(T, x_UKF1_noisy_vdM' , 'b--');
+ylim([-3 3])
+xlabel("Time / s")
+ylabel("[]")
+title("UKF-I - states - Noisy measurements - van der Merwe")
+
+h(Nfig) = figure(); Nfig = Nfig + 1;
+plot(nan, 'r', 'DisplayName',"Real"); hold on
+plot(nan , 'b--', 'DisplayName',"UKF");
+legend("AutoUpdate","off")
+plot(T, nP_real, 'r'); 
+plot(T, nP_UKF1_noisy_vdM, 'b--')
+xlabel("Time / s")
+ylabel("Position / m")
+title("UKF-I - Pendulum tip position xyz - Noisy measurements - van der Merwe")
 drawnow
 
 % savefig(h,'EKFvariants.fig')

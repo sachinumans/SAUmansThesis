@@ -360,7 +360,7 @@ disp("lDSr completed")
 clear all;
 toc
 
-%% Left to right foot double stance - split sagittal VPP
+%% Right to left foot double stance - split sagittal VPP
 syms t % time
 syms F1l F2l real % feet positions
 Fl = [F1l; F2l; 0];

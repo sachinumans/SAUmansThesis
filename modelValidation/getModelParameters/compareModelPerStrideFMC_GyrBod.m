@@ -73,7 +73,7 @@ while ki < k(end)
                 rFcur = rF-walkVel(1:2)*dt*(ki-k1);
                 xModel(:,ki+1) = xModel(:,ki) + dt*lDSr_split_eom_gyrBod(0,xModel(:,ki)',lFcur,rFcur,Vl_ds,Vs_bl,Vs_fl,h,Wi,l0+l_preload,m,K_ds,b_ds,gamx,gamy,rx,ry,alpha);
 
-                P{9} = K_ds; P{10} = 0;
+                P{9} = K_ds; P{10} = b_ds;
                 P{11} = [Vs_bl, Vs_fl]; P{12} = Vl_ds;
                 P{13} = [[lF'; 0],[rF'; 0]]; P{14} = -1;
                 grfModel(:,:,ki) = state2grf_DSsplit(xModel(:,ki), P);
@@ -95,7 +95,7 @@ while ki < k(end)
                 rFcur = rF-walkVel(1:2)*dt*(ki-k1);
                 xModel(:,ki+1) = xModel(:,ki) + dt*rDSl_split_eom_gyrBod(0,xModel(:,ki)',lFcur,rFcur,Vl_ds,Vs_bl,Vs_fl,h,Wi,l0+l_preload,m,K_ds,b_ds,gamx,gamy,rx,ry,alpha);
 
-                P{9} = K_ds; P{10} = 0;
+                P{9} = K_ds; P{10} = b_ds;
                 P{11} = [Vs_bl, Vs_fl]; P{12} = Vl_ds;
                 P{13} = [[lF'; 0],[rF'; 0]]; P{14} = -2;
                 grfModel(:,:,ki) = state2grf_DSsplit(xModel(:,ki), P);

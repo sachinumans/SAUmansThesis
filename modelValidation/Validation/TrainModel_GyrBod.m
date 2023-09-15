@@ -13,7 +13,8 @@ dt = 1/120;
 k = (1:(120*15))+1410;
 
 %% Train model
-w = diag([3 3 10, 1 1 1, 3 3 3 3, 1 1 1 1]);
+% w = diag([3 3 10, 1 1 1, 3 3 3 3, 1 1 1 1]);
+w = diag([1 1 1, 1 1 1, 1 1 1 1, 1 1 1 1]);
 WindowSize = 120;
 BMthr = 0.05;
 
@@ -38,9 +39,10 @@ p(13) = modelParams.spring.b_ss;
 p(14) = modelParams.spring.K_ds;
 p(15) = modelParams.spring.b_ds;
 
-k = (1:(120*5))+k(end);
+k = (1:(120*5))+k(end)+30;
 % k = k +10;
 
 [xMeas, gaitCycle, LgrfPos, RgrfPos, LgrfVec, RgrfVec, LgrfMag, RgrfMag, LLML, LGTR, RLML, RGTR] = getModelValParams_gyrBodV1(data, Trial, k, BMthr);
 
-compareModelPerStrideFMC_GyrBod(p, p_bio, w, k, xMeas, walkVel, gaitCycle, BMthr, LgrfPos, RgrfPos, LgrfVec, RgrfVec, LgrfMag, RgrfMag, LLML, LGTR, RLML, RGTR, dt, true)
+bound = modelParams.physical.m*9.81*BMthr;
+compareModelPerStrideFMC_GyrBod(p, p_bio, w, k, xMeas, walkVel, gaitCycle, bound, LgrfPos, RgrfPos, LgrfVec, RgrfVec, LgrfMag, RgrfMag, LLML, LGTR, RLML, RGTR, dt, true)
