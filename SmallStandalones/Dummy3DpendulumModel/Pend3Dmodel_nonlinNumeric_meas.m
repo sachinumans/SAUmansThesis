@@ -25,7 +25,9 @@ D = [2*Q*[0;bM] + 8*dQ*J*dQ'*nqb - 2*lambda*nqb; -2*ndqb'*ndqb];
 Estar = E(2:5, :);
 Dstar = D(2:5);
 
-nddqb = lsqminnorm(Estar, Dstar);% Estar\Dstar;
+% nddqb = Estar\Dstar;
+nddqb = lsqminnorm(Estar, Dstar);
+% nddqb = lsqminnorm(E, D, 1e-5);% Estar\Dstar;
 
 %% Measurement
 bOmeg = 2*T*Q'*ndqb;

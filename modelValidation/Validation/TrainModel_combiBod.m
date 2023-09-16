@@ -22,9 +22,15 @@ plotIO = true;
 
 WindowSize = -1;
 getModelParamsV9(data, Trial, k, WindowSize, w, walkVel, BMthr, dt, plotIO);
+saveAllOpenFigs("TrainingPerformance_BeamBody");
+close all
 getModelParams_gyrBodV1(data, Trial, k, WindowSize, w, walkVel, BMthr, dt, plotIO);
+saveAllOpenFigs("TrainingPerformance_FlywheelBody");
+close all
 
 modelParams = getModelParams_combiBodV1(data, Trial, k, w, walkVel, BMthr, dt, plotIO);
+saveAllOpenFigs("TrainingPerformance_BeamAndFlywheelBody");
+close all
 save modelParams_combiBod modelParams
 
 %% Validate model
@@ -54,3 +60,5 @@ pars.p_bio = p_bio;
 bound = modelParams.physical.m*9.81*BMthr;
 compareModelPerStrideFMC_combiBod(p, pars, w, k, xMeas, walkVel, gaitCycle, bound,...
     LgrfPos, RgrfPos, LgrfVec, RgrfVec, LgrfMag, RgrfMag, LLML, LGTR, RLML, RGTR, dt, true)
+saveAllOpenFigs("ValidationPerformance_BeamAndFlywheelBody");
+close all

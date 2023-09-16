@@ -1,16 +1,10 @@
-% figsOpen = true;
-% idx = 1;
-% while figsOpen
-%     curFig = get(groot,'CurrentFigure');
-%     if isempty(curFig)
-%         figsOpen = false;
-%         break;
-%     end
-%     h(idx) = curFig;
-%     close(curFig);
-% end
-
+function [] = saveAllOpenFigs(varargin)
 h =  findobj('type','figure');
 
-n = input("Enter filename: \n", "s");
+if nargin == 1
+    n = varargin{1};
+else
+    n = input("Enter filename: \n", "s");
+end
+
 savefig(h,n)
