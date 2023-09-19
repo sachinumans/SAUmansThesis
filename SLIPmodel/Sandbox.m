@@ -36,6 +36,7 @@
 
 % animate_strides(T_sim, X_sim, t_switch, feetpos, p)
 %% Compare explicit to implicit EoM calls
+if false
 load modelParams_combiBod
 pars.p_bio(1) = modelParams.physical.Wi; pars.p_bio(2) = modelParams.physical.l0;
 pars.p_bio(3) = modelParams.physical.m; pars.p_bio(4) = modelParams.physical.h;
@@ -93,4 +94,12 @@ for i = 1:1000
     dx = lDSr_split_eom_gyrBod(12,x',u(:,1)',u(:,2)',Vl,Vs_bl,Vs_fl,h,Wi,l,m,k,b,gamx,gamy,rx,ry,alpha);
 end
 ExplicitRuntime = toc
+end
+
+%% Van der Merwe update tester
+V = randi(10, [8 8]);
+E = randi(20, [8 1])+1;
+P = V*diag(E)*V';
+
+S0 = chol(P,"lower");
 

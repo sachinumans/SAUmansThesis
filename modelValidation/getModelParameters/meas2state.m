@@ -24,10 +24,14 @@ nRb = cat(3, nBx', nBy', nBz');
 nRb = permute(nRb, [1 3 2]);
 nqb = rotm2quat(nRb);
 
-%% Differentiate
-dCOM = diff(COM, 1, 1).*120;
-dnqb = diff(nqb, 1, 1).*120;
+%% Differentiate - forwards difference
+% dCOM = diff(COM, 1, 1).*120;
+% dnqb = diff(nqb, 1, 1).*120;
+
+%% Differentiate - central difference
+dCOM = (COM(3:end, :) - COM(1:end-2, :)).*60;
+dnqb = (nqb(3:end, :) - nqb(1:end-2, :)).*60;
 
 %% Compile
-x = [COM(2:end,:), dCOM, nqb(2:end,:), dnqb].';
+x = [COM(2:end-1,:), dCOM, nqb(2:end-1,:), dnqb].';
 end

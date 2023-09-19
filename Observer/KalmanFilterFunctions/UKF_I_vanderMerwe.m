@@ -1,4 +1,4 @@
-function [x_mink,P_mink] = UKF_I_vanderMerwe(f, h, m_km, u_km, u_k, y, S_km, sqrtR, sqrtQ, alpha, beta, kappa)
+function [xk,Sk] = UKF_I_vanderMerwe(f, h, m_km, u_km, u_k, y, S_km, sqrtR, sqrtQ, alpha, beta, kappa)
 %UKF_I_Prediction Unscented Kalman filter variant 1 with better algorithm
 %   Van der Merwe and Wan 2001, algorithm 3.1
 nx = length(m_km);

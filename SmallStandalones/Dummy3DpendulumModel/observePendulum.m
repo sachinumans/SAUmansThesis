@@ -10,6 +10,10 @@ timeSaveFactor = 1;
 
 Nfig = 1;
 
+alpha = 1e-4;
+beta = 2;
+kappa = 0;
+
 warning off
 %% Run 'real' nonlinear plant
 T = 0:Ts:10-Ts;
@@ -30,8 +34,8 @@ end
 
 y = nan(6,Tn);
 y_noisy = nan(6,Tn);
-    varAcc = 0.05*9.81;
-    varGyr = deg2rad(0.1);
+    varAcc = 0.1*9.81;
+    varGyr = deg2rad(1);
 
 nP_real = nan(3,Tn);
 for i = 1:Tn
@@ -44,8 +48,9 @@ end
 % legend(["x", "y", "z"])
 % comet3(nP_real(1,:), nP_real(2,:), nP_real(3,:))
 % plot3(nP_real(1,:), nP_real(2,:), nP_real(3,:))
-
-% if false
+% plot(T, y_noisy, 'b'); hold on
+% plot(T, y, 'r')
+if false
 
 %% Extended Kalman Filter I - noiseless
 if false
@@ -601,10 +606,6 @@ Scov = zeros(8,6);
 Qcov = 1e-13*eye(8);
 Rcov_clean = 1e-8*eye(6);
 
-alpha = 1e-1;
-beta = 2;
-kappa = 0;
-
 tic
 for k = 2:Tn
     u_km = u(:, k-1)';
@@ -655,10 +656,6 @@ end
 % Qcov = 1e-13*eye(8);
 % Rcov_noisy = blkdiag(eye(3).*varAcc, eye(3).*varGyr);
 % 
-% alpha = 1e-1;
-% beta = 2;
-% kappa = 0;
-% 
 % tic
 % for k = 2:Tn
 %     u_km = u(:, k-1)';
@@ -708,10 +705,6 @@ Scov = zeros(8,6);
 Qcov = 1e-7*eye(8);
 Rcov_noisy = blkdiag(eye(3).*varAcc, eye(3).*varGyr);
 
-alpha = 1e-4;
-beta = 2;
-kappa = 0;
-
 tic
 for k = 2:Tn
     u_km = u(:, k-1)';
@@ -751,12 +744,13 @@ xlabel("Time / s")
 ylabel("Position / m")
 title("UKF-I - Pendulum tip position xyz - Noisy measurements - Implicit EoM")
 drawnow
+end
 
 %% Unscented Kalman Filter I - noisy - van der Merwe
-% % x_UKF1_noisy = [x0, nan(8,Tn-1)];
+% x_UKF1_noisy = [x0, nan(8,Tn-1)];
 % x_UKF1_noisy_vdM = [[1; zeros(7,1)], nan(8,Tn-1)];
-% Prob_UKF1_noisy_vdM = nan(8,8,Tn);
-% Prob_UKF1_noisy_vdM(:,:,1) = 1e-5*eye(8);
+% S_UKF1_noisy_vdM = nan(8,8,Tn);
+% S_UKF1_noisy_vdM(:,:,1) = chol(1e-5*eye(8));
 % Scov = zeros(8,6);
 % Qcov = 1e-13*eye(8);
 % Rcov_noisy = blkdiag(eye(3).*varAcc, eye(3).*varGyr);
@@ -767,10 +761,9 @@ drawnow
 % tic
 % for k = 2:Tn
 % 
-%     [x_UKF1_noisy_vdM(:,k), Prob_UKF1_noisy_vdM(:,:,k)] = UKF_I_vanderMerwe(@(t, x, nu) Pend3Dmodel_nonlinNumeric_dyns(t, x, nu, pars), ...
+%     [x_UKF1_noisy_vdM(:,k), S_UKF1_noisy_vdM(:,:,k)] = UKF_I_vanderMerwe(@(t, x, nu) Pend3Dmodel_nonlinNumeric_dyns(t, x, nu, pars), ...
 %         @(t, x, nu) Pend3Dmodel_nonlinNumeric_meas(t, x, nu, pars), x_UKF1_noisy_vdM(:,k-1), u(:, k-1)', u(:, k)', y_noisy(:,k), ...
-%         Prob_UKF1_noisy_vdM(:,:,k-1), sqrtR, sqrtQ, alpha, beta, kappa);
-% 
+%         S_UKF1_noisy_vdM(:,:,k-1), sqrtR, sqrtQ, alpha, beta, kappa);
 %     x_UKF1_noisy_vdM(1:4,k) = x_UKF1_noisy_vdM(1:4,k)./norm(x_UKF1_noisy_vdM(1:4,k));
 % end
 % runTime.UKF_1_noisy_vdM = toc;
@@ -780,7 +773,7 @@ drawnow
 %     nP_UKF1_noisy_vdM(:,i) = state2P(x_UKF1_noisy(:,i), l);
 % end
 % 
-% % ---------
+% ---------
 % h(Nfig) = figure(); Nfig = Nfig + 1;
 % plot(nan, 'r', 'DisplayName',"Real");hold on
 % plot(nan , 'b--', 'DisplayName',"UKF"); 
@@ -803,7 +796,7 @@ drawnow
 % title("UKF-I - Pendulum tip position xyz - Noisy measurements - van der Merwe")
 % drawnow
 
-savefig(h,'EKFandUKFvariants.fig')
+% savefig(h,'EKFandUKFvariants.fig')
 warning on
 %% Functions
 function dx = Pend3DModel_eom_inputInterp(t, x, u, T)
