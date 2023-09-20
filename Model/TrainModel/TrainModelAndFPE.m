@@ -3,7 +3,7 @@ clc; close all;
 clearvars -except data
 if exist("data","var") ~= 1
     clear;
-    load([pwd '\..\..\human-walking-biomechanics\Level 3 - MATLAB files\Level 3 - MATLAB files\All Strides Data files\p6_AllStridesData.mat'])
+    load([pwd '\..\human-walking-biomechanics\Level 3 - MATLAB files\Level 3 - MATLAB files\All Strides Data files\p6_AllStridesData.mat'])
 end
 
 Trial = 8; %randi(33);

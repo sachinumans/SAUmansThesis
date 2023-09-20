@@ -143,13 +143,14 @@ for k_ = 2:length(k)
     
     fi = lpFilt(filtState, L-mean(Lmem));
     filtState = fi(1:end-1);
-    Llpmem = circshift(Llpmem, -1); Llpmem(3) = fi(end);
 
-    if liftoffDetector(Llpmem, liftcooldown)
+    [fidIO, Llpmem] = footImpactDetector(fi, Llpmem, stepcooldown)
+
+    if fidIO
         gaitCycle = circshift(gaitCycle, -1);
     end
 
-    if stepDetector(Llp_mem, stepcooldown)
+    if footImpactDetector(Llp_mem, stepcooldown)
         gaitCycle = circshift(gaitCycle, -1);
         uhat = [uhat, diag(FPE_sw, 1)*nextF + [0;FPE_sl]];
     end
@@ -171,17 +172,9 @@ end
 %     [nextF, L] = StepControllerFPE(xhat, l0, Wi, h, walkVel)
 % end
 
-function [IO] = stepDetector(Llp_mem, stepcooldown)
-    FDZeroCrossing = (Llp_mem(2)-Llp_mem(1))*(Llp_mem(3)-Llp_mem(2)) < 0;
-    ddLlp = ((Llp_mem(3)-Llp_mem(2))*120 - (Llp_mem(2)-Llp_mem(1))*120)*120;
-    IO = FDZeroCrossing && ddLlp > -0.005 && stepcooldown < 0;
-end
 
-function [IO] = liftoffDetector(Llp_mem, liftcooldown)
-    ZeroCrossing = (Llp_mem(3)*Llp_mem(2)) < 0;
-    dLlp = (Llp_mem(3)-Llp_mem(2))*120;
-    IO = ZeroCrossing && dLlp > -0.005 && liftcooldown < 0;
-end
+
+
 
 
 
