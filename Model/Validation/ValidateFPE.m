@@ -137,7 +137,7 @@ title("x Validation")
 
 %% Foot placement decision making
 L = []; F = [];
-for idx = 1:length(k)-1
+for idx = 1:length(k)-2
     [F_, L_] = StepControllerFPE(xMeasVal(:,idx), l0, Wi, h, walkVel);
     L = [L L_];
     F = [F F_];
