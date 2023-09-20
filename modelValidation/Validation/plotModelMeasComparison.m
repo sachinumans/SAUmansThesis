@@ -81,10 +81,10 @@ function plotModelMeasComparison(k, dt, grfModel, LgrfVec, RgrfVec, legLenModel,
 
     %% Compare leg length
     figure('Name',"Leg Lengths")
-    plot(t, LleglenMeas, 'r' ,'DisplayName',"Meas - L"); hold on
-    plot(t, LleglenModel, 'b','DisplayName',"Model - L");
-    plot(t, RleglenMeas, 'r--' ,'DisplayName',"Meas - R");
-    plot(t, RleglenModel, 'b--','DisplayName',"Model - R");
+    plot(t, LleglenMeas(1:length(k)), 'r' ,'DisplayName',"Meas - L"); hold on
+    plot(t, LleglenModel(1:length(k)), 'b','DisplayName',"Model - L");
+    plot(t, RleglenMeas(1:length(k)), 'r--' ,'DisplayName',"Meas - R");
+    plot(t, RleglenModel(1:length(k)), 'b--','DisplayName',"Model - R");
     xlabel("seconds")
     ylabel("meter")
     title("Leg Lengths");

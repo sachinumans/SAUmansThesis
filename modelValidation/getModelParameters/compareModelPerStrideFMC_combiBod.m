@@ -118,8 +118,19 @@ while ki < k(end-1)
     end
 end
 
+
+
 xModel = xModel(:,k(2:end-1));
-xModelRes = w*(xModel - xMeas)*diag(linMult(2:(length(xModel)+1))'.^2);
+if isempty(ki)
+    [~, kEnd] = ind2sub(size(xModel), find(xModel == zeros(14,1), 1));
+    kEnd = kEnd -1;
+    xModelRes = (w*(xModel(:,1:kEnd-1) - xMeas(:,1:kEnd-1)).^2);%*diag(linMult)';
+    k = k(1:kEnd);
+    xModel = xModel(:,1:kEnd-2);
+    xMeas = xMeas(:,1:kEnd-2);
+else
+    xModelRes = (w*(xModel - xMeas).^2);%*diag(linMult(2:(length(xModel)+1))';
+end
 xModelRes(isnan(xModelRes)) = 1e7;
 xModelResNorm = norm(xModelRes, "fro")^2;
 
