@@ -1,24 +1,34 @@
 clear all; close all; clc;
 load modelParams_gyrBod.mat
 Ts = 1/120;
-T = 0:Ts:2;
+T = 0:Ts:3-Ts;
 Tn = length(T);
 
 pars = mp2pars(modelParams);
 
 SSduration = 40;
-DSduration = 20;
+DSduration = 15;
 k_switch = [];
 
+walvel = 0.9;
+
 %% Initialise
-x0 = [-0.026; 0.61; 1.09;
-    -0.11; 0.027; 0.14; 
-    0.722255643442123; 0.0320355418126212;-0.00986004353587322;-0.690813498071837;
-    0.32; 0.069; 0.019; 0.34];
-x0(5) = x0(5) - 1.1;
+% x0 = [0; 0; 1.08;
+%     -0.11; -0.12; 0.5; 
+%     0.72; 0.032;-0.001;-0.69;
+%     0.32; 0.0; -0.1; 0.34];
+x0 = [0; 0; 1.1;
+    -0.11; -0.08; 0.5; 
+    0.72; 0;0;-0.69;
+    0.05; 0.0; 0; 0.05];
+x0(5) = x0(5) - walvel;
+x0(7:10) = x0(7:10)./norm(x0(7:10));
+% u{1} = x0(1:2) + [-0.06; -0.13];
+u{1} = x0(1:2) + [-0.065; -0.08];
+
 xSim = [x0, nan(14, Tn-1)];
-u{1} = x0(1:2) + [-0.15; 0];
 gaitCycle = ["rDSl", "LSS", "lDSr", "RSS"]; gaitCycle = circshift(gaitCycle, -1);
+gaitCycle0 = gaitCycle;
 
 SSremainder = SSduration;
 DSremainder = DSduration;
@@ -31,7 +41,7 @@ for k = 2:Tn
     % phase change detection
     [nextF, L] = StepControllerFPE(xSim(:, k), modelParams.physical.l0, modelParams.physical.Wi,...
         modelParams.physical.h, [0;0;0]);
-    nextF = diag([modelParams.FPE.SW, 1])*nextF + [0;modelParams.FPE.SL];
+    nextF = xSim(1:2, k) + diag([modelParams.FPE.SW, 1])*nextF + [0;modelParams.FPE.SL];
 
     switch gaitCycle(1)
         case {"LSS", "RSS"}
@@ -64,22 +74,61 @@ for k = 2:Tn
 end
 
 %% plot
-figure();
-subplot(2, 2, 1);
-plot(T, xSim(1:3,:))
+figure("WindowState","maximized");
+subplot(3, 2, 1);
+plot([T(1) T(end)], [xSim(2,1), xSim(2,1) - walvel*(T(end)-T(1))], 'k--', DisplayName='Walking trend'); hold on
+plot(T, xSim(1,:), 'b-.', DisplayName='x')
+plot(T, xSim(2,:), 'b--', DisplayName='y')
+plot(T, xSim(3,:), 'b', DisplayName='z')
+legend(AutoUpdate="off")
 for i = flip(k_switch)
     xline(T(i), 'k-', {gaitCycle(1)})
     gaitCycle = circshift(gaitCycle, 1);
 end
+ylim([-2, 2])
+xlabel("Time / s")
+ylabel("Position / m")
 
-subplot(2, 2, 2);
-plot(T, xSim(4:6,:))
+subplot(3, 2, 2);
+plot(T, xSim(4,:), 'b-.', DisplayName='dx'); hold on
+plot(T, xSim(5,:), 'b--', DisplayName='dy')
+plot(T, xSim(6,:), 'b',   DisplayName='dz')
+legend(AutoUpdate="off")
+xlabel("Time / s")
+ylabel("Velocity / m/s")
 
-subplot(2, 2, 3);
-plot(T, xSim(7:10,:))
+subplot(3, 2, 3);
+plot(T, xSim(7,:), 'b-.', DisplayName='q0'); hold on
+plot(T, xSim(8,:), 'b--', DisplayName='q1')
+plot(T, xSim(9,:), 'b',   DisplayName='q2')
+plot(T, xSim(10,:), 'b:',  DisplayName='q3')
+legend(AutoUpdate="off")
+xlabel("Time / s")
+ylabel("Rotation")
 
-subplot(2, 2, 4);
-plot(T, xSim(11:14,:))
+subplot(3, 2, 4);
+plot(T, xSim(11,:), 'b-.', DisplayName='dq0'); hold on
+plot(T, xSim(12,:), 'b--', DisplayName='dq1')
+plot(T, xSim(13,:), 'b',   DisplayName='dq2')
+plot(T, xSim(14,:), 'b:',  DisplayName='dq3')
+legend(AutoUpdate="off")
+xlabel("Time / s")
+ylabel("Rotation deriv")
+
+subplot(3,2,[5 6])
+plot(xSim(2,:), xSim(1,:), 'r', DisplayName='CoM'); hold on
+plot(nan, 'b^', DisplayName='Foot placements')
+legend(AutoUpdate="off")
+xlabel("N_y")
+ylabel("N_x")
+for p = u
+    plot(p{:}(2), p{:}(1), 'b^')
+end
+
+sgtitle("Autonomous walking with FPE and fixed phase duration")
+
+%% Animate
+% animate_strides_V2(T, xSim, gaitCycle0, k_switch, u, modelParams)
 
 
 %% Functions

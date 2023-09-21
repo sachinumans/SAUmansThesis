@@ -48,8 +48,8 @@ nOmeg_BN = 2*Qbar'*ndqb;
 assumeAlso(nOmeg_BN(1)==0);
 nOmeg_BN = nOmeg_BN(2:end);
 
-nns = cross(nPs-F, nSy); % VPP plane normal vectors
-nnl = cross(nPl-F, nSx);
+nns = cross(nPs-F, nSx); % VPP plane normal vectors
+nnl = cross(nPl-F, nSy);
 
 nrg = cross(nns, nnl); nrg = simplify(expand(nrg),"Steps",20);
 nrgNormSq = nrg'*nrg; nrgNormSq = simplify(nrgNormSq,"Steps",20);
@@ -161,8 +161,8 @@ nOmeg_BN = 2*Qbar'*ndqb;
 assumeAlso(nOmeg_BN(1)==0);
 nOmeg_BN = nOmeg_BN(2:end);
 
-nns = cross(nPs-F, nSy); % VPP plane normal vectors
-nnl = cross(nPl-F, nSx);
+nns = cross(nPs-F, nSx); % VPP plane normal vectors
+nnl = cross(nPl-F, nSy);
 
 nrg = cross(nns, nnl); nrg = simplify(expand(nrg),"Steps",20);
 nrgNormSq = nrg'*nrg; nrgNormSq = simplify(nrgNormSq,"Steps",20);
@@ -277,10 +277,10 @@ nOmeg_BN = 2*Qbar'*ndqb;
 assumeAlso(nOmeg_BN(1)==0);
 nOmeg_BN = nOmeg_BN(2:end);
 
-nns_L = cross(nPs_bl-Fl, nSy); % VPP plane normal vectors - left
-nnl_L = cross(nPl-Fl, nSx);
-nns_R = cross(nPs_fl-Fr, nSy); % VPP plane normal vectors - right
-nnl_R = cross(nPl-Fr, nSx);
+nns_L = cross(nPs_bl-Fl, nSx); % VPP plane normal vectors - left
+nnl_L = cross(nPl-Fl, nSy);
+nns_R = cross(nPs_fl-Fr, nSx); % VPP plane normal vectors - right
+nnl_R = cross(nPl-Fr, nSy);
 
 nrg_L = cross(nns_L, nnl_L); nrg_L = simplify(expand(nrg_L),"Steps",20); % direction of GRF - left
 nrgNormSq_L = nrg_L'*nrg_L; nrgNormSq_L = simplify(nrgNormSq_L,"Steps",20);
@@ -411,10 +411,10 @@ nOmeg_BN = 2*Qbar'*ndqb;
 assumeAlso(nOmeg_BN(1)==0);
 nOmeg_BN = nOmeg_BN(2:end);
 
-nns_L = cross(nPs_fl-Fl, nSy); % VPP plane normal vectors - left
-nnl_L = cross(nPl-Fl, nSx);
-nns_R = cross(nPs_bl-Fr, nSy); % VPP plane normal vectors - right
-nnl_R = cross(nPl-Fr, nSx);
+nns_L = cross(nPs_fl-Fl, nSx); % VPP plane normal vectors - left
+nnl_L = cross(nPl-Fl, nSy);
+nns_R = cross(nPs_bl-Fr, nSx); % VPP plane normal vectors - right
+nnl_R = cross(nPl-Fr, nSy);
 
 nrg_L = cross(nns_L, nnl_L); nrg_L = simplify(expand(nrg_L),"Steps",20); % direction of GRF - left
 nrgNormSq_L = nrg_L'*nrg_L; nrgNormSq_L = simplify(nrgNormSq_L,"Steps",20);

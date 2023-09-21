@@ -88,6 +88,8 @@ p(13) = modelParams.spring.b_ss;
 p(14) = modelParams.spring.K_ds;
 p(15) = modelParams.spring.b_ds;
 
+pars.p_bio = p_bio;
+% pars.p_spring = p(12:15);
 bound = modelParams.physical.m*9.81*BMthr;
 
 % Remainder of training data - Trial 8
@@ -96,8 +98,10 @@ k = (k(end)+ 1):6000;
 
 [xMeas, gaitCycle, LgrfPos, RgrfPos, LgrfVec, RgrfVec, LgrfMag, RgrfMag, LLML, LGTR, RLML, RGTR] = ...
     getModelValParams_gyrBodV1(data, Trial, k, BMthr);
-ValPerf(2).eight = compareModelPerStrideFMC_GyrBod(p, p_bio, w, k, xMeas, walkVel, gaitCycle,...
-    bound, LgrfPos, RgrfPos, LgrfVec, RgrfVec, LgrfMag, RgrfMag, LLML, LGTR, RLML, RGTR, dt, 0)
+% ValPerf(2).eight = compareModelPerStrideFMC_GyrBod(p, p_bio, w, k, xMeas, walkVel, gaitCycle,...
+%     bound, LgrfPos, RgrfPos, LgrfVec, RgrfVec, LgrfMag, RgrfMag, LLML, LGTR, RLML, RGTR, dt, 0)
+ValPerf(2).eight = compareModelPerStrideFMC_GyrBod_implicit(p, pars, w, k, xMeas, walkVel, gaitCycle, bound,...
+    LgrfPos, RgrfPos, LgrfVec, RgrfVec, LgrfMag, RgrfMag, LLML, LGTR, RLML, RGTR, dt, false)
 
 % 0.9 walking speed
 Trial = 5
@@ -106,8 +110,10 @@ k = 1200:6000;
 
 [xMeas, gaitCycle, LgrfPos, RgrfPos, LgrfVec, RgrfVec, LgrfMag, RgrfMag, LLML, LGTR, RLML, RGTR] = ...
     getModelValParams_gyrBodV1(data, Trial, k, BMthr);
-ValPerf(2).five = compareModelPerStrideFMC_GyrBod(p, p_bio, w, k, xMeas, walkVel, gaitCycle,...
-    bound, LgrfPos, RgrfPos, LgrfVec, RgrfVec, LgrfMag, RgrfMag, LLML, LGTR, RLML, RGTR, dt, 0)
+% ValPerf(2).five = compareModelPerStrideFMC_GyrBod(p, p_bio, w, k, xMeas, walkVel, gaitCycle,...
+%     bound, LgrfPos, RgrfPos, LgrfVec, RgrfVec, LgrfMag, RgrfMag, LLML, LGTR, RLML, RGTR, dt, 0)
+ValPerf(2).five = compareModelPerStrideFMC_GyrBod_implicit(p, pars, w, k, xMeas, walkVel, gaitCycle, bound,...
+    LgrfPos, RgrfPos, LgrfVec, RgrfVec, LgrfMag, RgrfMag, LLML, LGTR, RLML, RGTR, dt, false)
 
 % 1.4 walking speed
 Trial = 32
@@ -116,8 +122,10 @@ k = 1200:6000;
 
 [xMeas, gaitCycle, LgrfPos, RgrfPos, LgrfVec, RgrfVec, LgrfMag, RgrfMag, LLML, LGTR, RLML, RGTR] = ...
     getModelValParams_gyrBodV1(data, Trial, k, BMthr);
-ValPerf(2).thirtytwo = compareModelPerStrideFMC_GyrBod(p, p_bio, w, k, xMeas, walkVel, gaitCycle,...
-    bound, LgrfPos, RgrfPos, LgrfVec, RgrfVec, LgrfMag, RgrfMag, LLML, LGTR, RLML, RGTR, dt, false)
+% ValPerf(2).thirtytwo = compareModelPerStrideFMC_GyrBod(p, p_bio, w, k, xMeas, walkVel, gaitCycle,...
+%     bound, LgrfPos, RgrfPos, LgrfVec, RgrfVec, LgrfMag, RgrfMag, LLML, LGTR, RLML, RGTR, dt, false)
+ValPerf(2).thirtytwo = compareModelPerStrideFMC_GyrBod_implicit(p, pars, w, k, xMeas, walkVel, gaitCycle, bound,...
+    LgrfPos, RgrfPos, LgrfVec, RgrfVec, LgrfMag, RgrfMag, LLML, LGTR, RLML, RGTR, dt, 1)
 
 % 1.6 walking speed
 Trial = 11
@@ -126,5 +134,7 @@ k = 1200:6000;
 
 [xMeas, gaitCycle, LgrfPos, RgrfPos, LgrfVec, RgrfVec, LgrfMag, RgrfMag, LLML, LGTR, RLML, RGTR] = ...
     getModelValParams_gyrBodV1(data, Trial, k, BMthr);
-ValPerf(2).eleven = compareModelPerStrideFMC_GyrBod(p, p_bio, w, k, xMeas, walkVel, gaitCycle,...
-    bound, LgrfPos, RgrfPos, LgrfVec, RgrfVec, LgrfMag, RgrfMag, LLML, LGTR, RLML, RGTR, dt, 0)
+% ValPerf(2).eleven = compareModelPerStrideFMC_GyrBod(p, p_bio, w, k, xMeas, walkVel, gaitCycle,...
+%     bound, LgrfPos, RgrfPos, LgrfVec, RgrfVec, LgrfMag, RgrfMag, LLML, LGTR, RLML, RGTR, dt, 0)
+ValPerf(2).eleven = compareModelPerStrideFMC_GyrBod_implicit(p, pars, w, k, xMeas, walkVel, gaitCycle, bound,...
+    LgrfPos, RgrfPos, LgrfVec, RgrfVec, LgrfMag, RgrfMag, LLML, LGTR, RLML, RGTR, dt, false)

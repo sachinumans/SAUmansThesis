@@ -1,4 +1,4 @@
-function [dx] = ImplicitEoM_combiBod_dyns(x, u, pars, lr)
+function [dx, nG] = ImplicitEoM_gyrBod_dyns_returnAll(x, u, pars, lr)
 %IMPLICITEOM_DYNS Summary of this function goes here
 %   Detailed explanation goes here
 
@@ -14,7 +14,6 @@ gamy = pars.p(8);
 rx = pars.p(9);
 ry = pars.p(10);
 alpha = pars.p(11);
-bJ_stat = diag(pars.p(12:14));
 
 nC = x(1:3);
 ndC = x(4:6);
@@ -46,9 +45,11 @@ switch lr
     case "lDSr"
         [nG_L, nG_R, nM] = dsGRF(lr);
         nddC = (nG_L + nG_R + nZ)/m;
+        nG = [nG_L, nG_R];
     case "rDSl"
         [nG_L, nG_R, nM] = dsGRF(lr);
         nddC = (nG_L + nG_R + nZ)/m;
+        nG = [nG_L, nG_R];
     otherwise
         error("Invalid input")
 end
@@ -58,7 +59,7 @@ bM = nRb'*nM;
 % Rotational dynamics
 bJgyr_x = diag([1 0.5 0.5])*alpha*m*rx^2;
 bJgyr_y = diag([0.5 1 0.5])*(1-alpha)*m*ry^2;
-bJc = bJ_stat + bJgyr_y + bJgyr_x;
+bJc = bJgyr_y + bJgyr_x;
 gam = [gamx*alpha*m*rx^2 ; gamy*(1-alpha)*m*ry^2; 0];
 
 b_J_c = blkdiag(0,bJc);
@@ -119,6 +120,7 @@ dx = [ndC; nddC; ndqb; nddqb];
     magG = 1/dot(nrgHat, nruHat) * (K_ss*(l0+l_preload - sqrt(nruNormSq)) - b_ss*(dot(dHdF, nruHat)));
 
     nG = magG*nrgHat;
+    if nG(3) < 0; nG = zeros(3,1); end
 
     % Get moment
     nM = cross(F-nC, nG);
@@ -170,6 +172,7 @@ dx = [ndC; nddC; ndqb; nddqb];
     magG_L = 1/dot(nrgHat_L, nruHat_L) * (K_ds*(l0+l_preload - sqrt(nruNormSq_L)) - b_ds*(dot(dHdF_L, nruHat_L)));
 
     nG_L = magG_L*nrgHat_L;
+    if nG_L(3) < 0; nG_L = zeros(3,1); end
 
     nHR = nC - h*nBz - Wi/2*nBy; % Right hip
     nru_R = nHR - Fr;
@@ -181,6 +184,7 @@ dx = [ndC; nddC; ndqb; nddqb];
     magG_R = 1/dot(nrgHat_R, nruHat_R) * (K_ds*(l0+l_preload - sqrt(nruNormSq_R)) - b_ds*(dot(dHdF_R, nruHat_R)));
 
     nG_R = magG_R*nrgHat_R;
+    if nG_R(3) < 0; nG_R = zeros(3,1); end
 
     % Get moments
     nM = cross(Fl-nC, nG_L) + cross(Fr-nC, nG_R);

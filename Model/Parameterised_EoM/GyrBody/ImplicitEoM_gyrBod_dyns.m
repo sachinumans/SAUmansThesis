@@ -33,7 +33,7 @@ nSy = diag([1 1 0])*nBy;
 
 
 % Get forces and moments
-nZ = [0;0;-m*9.81]; % Gravity
+nZ = [0;0;-m*9.81] + nRb*[0;10;0]; % Gravity
 
 switch lr
     case "LSS"
@@ -93,8 +93,8 @@ dx = [ndC; nddC; ndqb; nddqb];
     nOmeg_BN = 2*Qbar'*ndqb;
     nOmeg_BN = nOmeg_BN(2:end);
 
-    nns = cross(nPs-F, nSy); % VPP plane normal vectors
-    nnl = cross(nPl-F, nSx);
+    nns = cross(nPs-F, nSx); % VPP plane normal vectors
+    nnl = cross(nPl-F, nSy);
 
     nrg = cross(nns, nnl);
     nrgNormSq = nrg'*nrg;
@@ -118,6 +118,7 @@ dx = [ndC; nddC; ndqb; nddqb];
     magG = 1/dot(nrgHat, nruHat) * (K_ss*(l0+l_preload - sqrt(nruNormSq)) - b_ss*(dot(dHdF, nruHat)));
 
     nG = magG*nrgHat;
+    if nG(3) < 0; nG = zeros(3,1); end
 
     % Get moment
     nM = cross(F-nC, nG);
@@ -138,15 +139,15 @@ dx = [ndC; nddC; ndqb; nddqb];
 
     switch lr
         case "lDSr"
-            nns_L = cross(nPs_bl-Fl, nSy); % VPP plane normal vectors - left
-            nnl_L = cross(nPl-Fl, nSx);
-            nns_R = cross(nPs_fl-Fr, nSy); % VPP plane normal vectors - right
-            nnl_R = cross(nPl-Fr, nSx);
+            nns_L = cross(nPs_bl-Fl, nSx); % VPP plane normal vectors - left
+            nnl_L = cross(nPl-Fl, nSy);
+            nns_R = cross(nPs_fl-Fr, nSx); % VPP plane normal vectors - right
+            nnl_R = cross(nPl-Fr, nSy);
         case "rDSl"
-            nns_L = cross(nPs_fl-Fl, nSy); % VPP plane normal vectors - left
-            nnl_L = cross(nPl-Fl, nSx);
-            nns_R = cross(nPs_bl-Fr, nSy); % VPP plane normal vectors - right
-            nnl_R = cross(nPl-Fr, nSx);
+            nns_L = cross(nPs_fl-Fl, nSx); % VPP plane normal vectors - left
+            nnl_L = cross(nPl-Fl, nSy);
+            nns_R = cross(nPs_bl-Fr, nSx); % VPP plane normal vectors - right
+            nnl_R = cross(nPl-Fr, nSy);
         otherwise
             error("Invalid input")
     end
@@ -169,6 +170,7 @@ dx = [ndC; nddC; ndqb; nddqb];
     magG_L = 1/dot(nrgHat_L, nruHat_L) * (K_ds*(l0+l_preload - sqrt(nruNormSq_L)) - b_ds*(dot(dHdF_L, nruHat_L)));
 
     nG_L = magG_L*nrgHat_L;
+    if nG_L(3) < 0; nG_L = zeros(3,1); end
 
     nHR = nC - h*nBz - Wi/2*nBy; % Right hip
     nru_R = nHR - Fr;
@@ -180,6 +182,7 @@ dx = [ndC; nddC; ndqb; nddqb];
     magG_R = 1/dot(nrgHat_R, nruHat_R) * (K_ds*(l0+l_preload - sqrt(nruNormSq_R)) - b_ds*(dot(dHdF_R, nruHat_R)));
 
     nG_R = magG_R*nrgHat_R;
+    if nG_R(3) < 0; nG_R = zeros(3,1); end
 
     % Get moments
     nM = cross(Fl-nC, nG_L) + cross(Fr-nC, nG_R);

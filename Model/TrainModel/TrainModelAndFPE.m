@@ -10,10 +10,10 @@ Trial = 8; %randi(33);
 walkVel = [0 -1.1 0];
 dt = 1/120;
 
-k = (1:(120*25))+120*10;
+k = (1:(120*10))+120*10;
 
-w = [3 3 10, 1 1 1, 3 3 3 3, 1 1 1 1];
-% w = [5 5 5, 1 1 1, 1 1 1 1, 1 1 1 1];
+% w = [3 3 10, 1 1 1, 3 3 3 3, 1 1 1 1];
+w = [5 5 5, 1 1 1, 1 1 1 1, 1 1 1 1];
 w = diag(w./norm(w));
 BMthr = 0.05;
 
@@ -25,11 +25,13 @@ WindowSize = -1;
 % saveAllOpenFigs("TrainingPerformance_BeamBody");
 % close all
 
-modelParams = getModelParams_gyrBodV1(data, Trial, k, WindowSize, w, walkVel, BMthr, dt, plotIO);
+modelParams = getModelParams_gyrBod_implicit(data, Trial, k, w, walkVel, BMthr, dt, plotIO);
 saveAllOpenFigs("TrainingPerformance_FlywheelBody");
-close all
+% close all
 save modelParams_gyrBod modelParams Trial k w 
 
+return
+%%
 modelParams = getModelParams_combiBodV1(data, Trial, k, w, walkVel, BMthr, dt, plotIO);
 saveAllOpenFigs("TrainingPerformance_BeamAndFlywheelBody");
 close all

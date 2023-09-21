@@ -55,7 +55,9 @@ while ki < k(end)
 end
 
 A = l0 - A;
-A = [A(1:end-1), diff(A)*120];
+dA = (A(3:end) - A(1:end-2)).*60;
+% A = [A(1:end-1), diff(A)*120];
+A = [A(2:end-1), dA];
 
 Css = A(~isnan(A(:,2)),:)\c(~isnan(A(:,2)));
 K_ss = Css(1);
