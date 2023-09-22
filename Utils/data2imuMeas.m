@@ -1,4 +1,14 @@
 function [meas, measNames] = data2imuMeas(data, Trial, k, sensors, varAcc, varGyr)
+% DATA2IMUMEAS Transforms optical marker data as provided by Van der Zee to
+% emulated IMU measurements
+% data: marker data
+% Trial: Trial number
+% k: time indices
+% sensors: String array with active sensors
+%     UB = Upper Body
+%     ["UB_ASI", "UB_AC", "Lfoot", "Rfoot"]
+% varAcc, varGyr: variances on accelerometer and gyroscpe measurement noise
+
 %% Extract data
 SACR = data(Trial).TargetData.SACR_pos_proc(:, 1:3);
 LASI = data(Trial).TargetData.LASI_pos_proc(:, 1:3);

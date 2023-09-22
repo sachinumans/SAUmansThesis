@@ -1,4 +1,4 @@
-% Determine nonlinear EoM
+% Determine nonlinear EoM analytically
 tic
 %% Left foot single stance
 syms t % time

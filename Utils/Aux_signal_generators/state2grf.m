@@ -1,5 +1,5 @@
 function [nGRF] = state2grf(x, p)
-%STATE2GRF Summary of this function goes here
+%STATE2GRF Translates the state into the ground reaction force
 %   Detailed explanation goes here
 %% Unpack parameters
 g =     p{1};       % Gravity constant
@@ -33,17 +33,17 @@ NqB =  x(7:10);  % Quaternion rotation from N to B
 dNqB = x(11:14); % Quaternion rotation velocity from N to B
 
 %% S frame
-nRb = quat2R(NqB);
+nRb = quat2R(NqB); % Rotation matrix B to N
 bRn = quat2R(quatInv(NqB));
 
 
 nBx = nRb*[1;0;0];
-nBx_Nxy = [nBx(1:2); 0];
+nBx_Nxy = [nBx(1:2); 0]; % B_x in N projected onto the Nx-Ny plane
 nSx = nBx_Nxy./norm(nBx_Nxy);
 nSx = nSx./norm(nSx);
 
 nBy = nRb*[0;1;0];
-nBy_Nxy = [nBy(1:2); 0];
+nBy_Nxy = [nBy(1:2); 0]; % B_y in N projected onto the Nx-Ny plane
 nSy = nBy_Nxy./norm(nBx_Nxy);
 nSy = nSy./norm(nSy);
 

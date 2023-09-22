@@ -1,6 +1,6 @@
 function [qp] = quatProd(Q,P)
-%QUATPROD Summary of this function goes here
-%   Detailed explanation goes here
+%QUATPROD Perform the quaternion multiplication between q and p
+
 validateattributes(Q,{'numeric' 'sym'},{'size',[4,1]})
 validateattributes(P,{'numeric' 'sym'},{'size',[4,1]})
 

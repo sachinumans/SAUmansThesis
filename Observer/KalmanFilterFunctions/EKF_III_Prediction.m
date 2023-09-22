@@ -1,6 +1,7 @@
 function [m_mink,P_mink] = EKF_III_Prediction(f, m_km, u_km, F_x, F_xx, P_km, Q)
-%EKF_I_PREDICTION Extended Kalman filter variant 3
-%   Sarkka book page 73
+%EKF_I_PREDICTION Extended Kalman filter variant 3: second order with
+%additive noise
+%   Simo Särkkä (2013). Bayesian Filtering and Smoothing. Cambridge University Press. page 73
 nx = length(m_km);
 SUMm = zeros(nx, 1);
 SUMp = zeros(nx);

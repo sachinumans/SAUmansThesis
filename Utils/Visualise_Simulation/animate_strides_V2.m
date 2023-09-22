@@ -1,10 +1,16 @@
 function [] = animate_strides_V2(tSim, xSim, gaitCycle, k_switch, u, modelParams)
-%ANIMATE_STRIDES Summary of this function goes here
-%   Detailed explanation goes here
-fps = 60;
-fpsReal = round(1/mean(diff(tSim)));
-frameGap = round(fpsReal/fps);
-K = 1:frameGap:length(xSim);
+%ANIMATE_STRIDES Animate walking and give information
+%     tSim: Simulation time array
+%     xSim: Simulation array with states along the 1st axis and time along the 2nd
+%     gaitCycle: String array with the first position being the inital gait phase
+%     k_switch: Phase change times
+%     u: Cell array with feet position in every phase
+%     modelParams: Struct with model
+
+fps = 60; % framerate for saved video
+fpsReal = round(1/mean(diff(tSim))); % Simulation frequency
+frameGap = round(fpsReal/fps); % Skipped frames
+K = 1:frameGap:length(xSim); % Plotted framenumbers
 
 %% Unpack parameters
 Le =    0.6;                            % Torso height
@@ -12,6 +18,7 @@ Wi =    modelParams.physical.Wi;        % Torso width
 De =    0.2;                            % Torso depth
 h =     modelParams.physical.h;         % Distance CoM to hip
 
+% VPP's
 Vs_ss = modelParams.vpp.Vs_ss;
 Vl_ss = modelParams.vpp.Vl_ss;
 Vs_fl = modelParams.vpp.Vs_fl;
@@ -19,14 +26,15 @@ Vs_bl = modelParams.vpp.Vs_bl;
 Vl_ds = modelParams.vpp.Vl_ds;
 
 %% Define body-fixed points
-bod_t = [0;0; Le-h];
-bod_bo = [0;0; -h];
-bod_f = bod_bo + [0.5*De; 0;0];
-bod_ba = bod_bo - [0.5*De; 0;0];
-HL = bod_bo + [0; 0.5*Wi; 0];
-HR = bod_bo - [0; 0.5*Wi; 0];
+bod_t = [0;0; Le-h]; % Top
+bod_bo = [0;0; -h]; % Bottom
+bod_f = bod_bo + [0.5*De; 0;0]; % Front
+bod_ba = bod_bo - [0.5*De; 0;0]; % Back
+HL = bod_bo + [0; 0.5*Wi; 0]; % Left hip
+HR = bod_bo - [0; 0.5*Wi; 0]; % Right hip
 Btorso = [bod_t, bod_bo, bod_f, bod_ba, HL, HR];
 
+% VPP points relative to CoM
 Pvsss = [0;0;Vs_ss];
 Pvlss = [0;0;Vl_ss];
 Bvpp_ss = [Pvsss, Pvlss];
@@ -68,8 +76,7 @@ k_switch_mem = k_switch;
 pars = mp2pars(modelParams);
 
 for k = K
-    [~, nG] = ImplicitEoM_gyrBod_dyns_returnAll(xSim(:,k), u{ku}, pars, gaitCycle(1));
-    if any(nG(3,:) < 0); warning("Floor can suck?"); end
+    [~, nG] = ImplicitEoM_gyrBod_dyns_returnAll(xSim(:,k), u{ku}, pars, gaitCycle(1)); % GRF
     nRb = quat2R(xSim(7:10, k));
 
     subplot(latax)
@@ -86,19 +93,19 @@ for k = K
     plotGRFdir();
     plotGRFmag();
 
-    if any(k_switch_mem < k)
+    if any(k_switch_mem < k) % Phase change
         k_switch_mem = k_switch_mem(2:end);
         ku = ku+1;
         gaitCycle = circshift(gaitCycle, -1);
     end
     
-    drawnow
+    drawnow % Store frame
     M(frame) = getframe(h);
     frame = frame + 1;
 end
 
 writeIO = input("Write to .avi file? y/n [n]:", "s");
-if writeIO == "y"
+if writeIO == "y" % Write video file
     v= VideoWriter(strjoin([pwd "\Movies\" string(datetime("now"),'dMMMyy_HH_mm_ss') "SLIPmodelStrides.avi"], ""));
     v.FrameRate = fps;
     open(v);

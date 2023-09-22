@@ -1,5 +1,6 @@
 function [nGRF] = state2grf_DSsplit(x, p)
-%STATE2GRF Summary of this function goes here
+%STATE2GRF Transforms the state to the ground reaction force in the case of
+% front-back leg split VPP in double stance
 %   Detailed explanation goes here
 %% Unpack parameters
 g =     p{1};       % Gravity constant
@@ -17,6 +18,7 @@ VPPL =  p{12};          % Lateral plane Virtual Pendulum Point
 nF =    p{13};          % Foot position in world frame N
 LR =    p{14};          % Left/Right, 0=both, 1=left, 2=right, -1=lDSr, -2=rDSl
 
+% Feet positions
 if LR <= 0
     nFL = nF(:,1);
     nFR = nF(:,2);
@@ -33,10 +35,10 @@ NqB =  x(7:10);  % Quaternion rotation from N to B
 dNqB = x(11:14); % Quaternion rotation velocity from N to B
 
 %% S frame
-nRb = quat2R(NqB);
+nRb = quat2R(NqB); % Rotation matrix from B to N
 bRn = quat2R(quatInv(NqB));
 
-nBx = nRb*[1;0;0];
+nBx = nRb*[1;0;0]; % B_x in N
 nBy = nRb*[0;1;0];
 
 nSx = diag([1 1 0])*nBx;

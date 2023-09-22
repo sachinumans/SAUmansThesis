@@ -1,6 +1,5 @@
 function [bRn] = quat2R(BqN)
-%QUAT2R Summary of this function goes here
-%   Detailed explanation goes here
+%QUAT2R Returns the rotation matrix from N to B associated with BqN
 Q = quat2matr(BqN);
 Qbar = quat2barmatr(BqN);
 

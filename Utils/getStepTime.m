@@ -1,4 +1,6 @@
 function [k_step, realStep] = getStepTime(k, xMeas, walkVel, LgrfPos, RgrfPos, LgrfVec, RgrfVec, gaitCycle, bound, dt) 
+% GETSTEPTIME Retrieves the time indices of gait phase transitions
+
 LgrfMag = vecnorm(LgrfVec', 2, 1);
 RgrfMag = vecnorm(RgrfVec', 2, 1);
 

@@ -1,4 +1,6 @@
 function [x] = meas2state(data, Trial, k)
+% MEAS2STATE Transforms optical marker timeseries to model states
+
 %% Extract data
 SACR = data(Trial).TargetData.SACR_pos_proc(k, 1:3);
 LASI = data(Trial).TargetData.LASI_pos_proc(k, 1:3);

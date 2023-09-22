@@ -1,5 +1,5 @@
 function [] = animate_strides(T_sim, X_sim, t_switch, feetpos, p)
-%ANIMATE_STRIDES Summary of this function goes here
+%ANIMATE_STRIDES [Legacy function] Animate simulation data
 %   Detailed explanation goes here
 fps = (T_sim(end)-T_sim(1))/2;
 T_sim = [T_sim;T_sim(end);T_sim(end)];

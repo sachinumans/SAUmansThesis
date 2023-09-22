@@ -1,9 +1,6 @@
-function [adj_q] = quatAdj(q)
-%QUATADJ Summary of this function goes here
-%   Detailed explanation goes here
-validateattributes(q,{'numeric'},{'size',[4,1]})
+function [q] = quatAdj(q)
+%QUATADJ Return the quaternion adjoint of q
 
-adj = blkdiag(1,-1*eye(3));
-adj_q = adj*q;
+q(2:4) = -q(2:4); % adjoint quaternion
 end
 

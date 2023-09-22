@@ -1,5 +1,6 @@
 function [legLen] = state2legLength_DSsplit(x, p)
-%STATE2LEGLENGTH Summary of this function goes here
+%STATE2LEGLENGTH Transforms the state to the leg length in the case of
+% front-back leg split VPP in double stance
 %   Detailed explanation goes here
 %% Unpack parameters
 g =     p{1};       % Gravity constant
@@ -27,6 +28,7 @@ HR = bod_bo - [0; 0.5*Wi; 0];
 
 Btorso = [bod_t, bod_bo, bod_f, bod_ba, HL, HR];
 
+%% Calc leg length
 NqB = x(7:10)';
 nRb = quat2R(NqB);
 

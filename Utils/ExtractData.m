@@ -1,8 +1,16 @@
-function [xMeas, gaitCycle, LgrfPos, RgrfPos, LgrfVec, RgrfVec, LgrfMag, RgrfMag, LLML, LGTR, RLML, RGTR] = getModelValParams_gyrBodV1(data, Trial, k, BMthr)
-%GETBODYPARAMSV9 Summary of this function goes here
-%   Detailed explanation goes here
+function [LASI, RASI, COM, LAC, RAC, CAC, LGTR, RGTR, LLML, RLML, RgrfVec, RgrfPos, LgrfVec, LgrfPos, LgrfMag, RgrfMag]...
+    = ExtractData(data, Trial, k)
 
 %% Extract data
+SACR = data(Trial).TargetData.SACR_pos_proc(k, 1:3);
+LASI = data(Trial).TargetData.LASI_pos_proc(k, 1:3);
+RASI = data(Trial).TargetData.RASI_pos_proc(k, 1:3);
+COM = (SACR+LASI+RASI)./3; % COM estimate
+
+LAC = data(Trial).TargetData.LAC_pos_proc(k, 1:3);
+RAC = data(Trial).TargetData.RAC_pos_proc(k, 1:3);
+CAC = (LAC+RAC)./2; % Center of shoulderblades
+
 LGTR = data(Trial).TargetData.LGTR_pos_proc(k, 1:3);
 RGTR = data(Trial).TargetData.RGTR_pos_proc(k, 1:3);
 
@@ -22,24 +30,4 @@ Lidx_correct = find(LgrfPos(:,1)>0.05 & LgrfPos(:,1)<0.15 & LgrfPos(:,2)>0.5 & L
 LgrfPos = interp1(Lidx_correct, LgrfPos(Lidx_correct,:), 1:length(LgrfPos), "linear");
 Ridx_correct = find(RgrfPos(:,1)<-0.05 & RgrfPos(:,1)>-0.15 & RgrfPos(:,2)>0.5 & RgrfPos(:,2)<1.35);
 RgrfPos = interp1(Ridx_correct, RgrfPos(Ridx_correct,:), 1:length(RgrfPos), "linear");
-
-%% Determine initial state
-initGRFmagL = norm(LgrfVec(k(1),:));
-initGRFmagR = norm(RgrfVec(k(1),:));
-
-m = data(Trial).Participant.Mass;
-bound = m*9.81*BMthr;
-gaitCycle = ["rDSl", "lSS", "lDSr", "rSS"];
-
-if initGRFmagL>bound && initGRFmagR>bound
-    error("Cannot initialise in double stance, ambiguous stance order. Choose a different initial timestep.")
-elseif initGRFmagL < bound && initGRFmagR>bound
-    gaitCycle = circshift(gaitCycle, -3);
-elseif initGRFmagL>bound && initGRFmagR < bound
-    gaitCycle = circshift(gaitCycle, -1);
 end
-
-xMeas = meas2state(data, Trial, k);
-
-end
-

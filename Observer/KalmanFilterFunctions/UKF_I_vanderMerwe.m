@@ -1,6 +1,13 @@
 function [xk,Sk] = UKF_I_vanderMerwe(f, h, m_km, u_km, u_k, y, S_km, sqrtR, sqrtQ, alpha, beta, kappa)
 %UKF_I_Prediction Unscented Kalman filter variant 1 with better algorithm
-%   Van der Merwe and Wan 2001, algorithm 3.1
+%   Van der Merwe, R., & Wan, E. A. (2001). The square-root unscented Kalman 
+% filter for state and parameter-estimation. 2001 IEEE International 
+% Conference on Acoustics, Speech, and Signal Processing. Proceedings 
+% (Cat. No.01CH37221), 6, 3461–3464 vol.6. 
+% https://doi.org/10.1109/ICASSP.2001.940586
+% Algorithm 3.1
+
+
 nx = length(m_km);
 ny = length(y);
 lambda = alpha^2*(nx + kappa) - nx;

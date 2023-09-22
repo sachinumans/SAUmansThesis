@@ -1,6 +1,6 @@
 function [dx] = ImplicitEoM_combiBod_dyns(x, u, pars, lr)
-%IMPLICITEOM_DYNS Summary of this function goes here
-%   Detailed explanation goes here
+%IMPLICITEOM_DYNS Returns the first derivative of the state x under input u 
+%   For the model of a combined beam and gyroscopes upper body
 
 Wi = pars.p_bio(1); l0 = pars.p_bio(2);  m = pars.p_bio(3); h = pars.p_bio(4);
 K_ss = pars.p_spring(1); b_ss = pars.p_spring(2);

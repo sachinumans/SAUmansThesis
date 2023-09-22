@@ -1,6 +1,7 @@
 function [m_k, P_k] = EKF_III_Update(y, h, m_mink, u_k, H_x, H_xx, P_mink, R, frobNormBound, rescaleFactor)
-%EKF_I_UPDATE Extended Kalman filter variant 3
-%   Sarkka book page 73
+%EKF_I_UPDATE Extended Kalman filter variant 3: second order with
+%additive noise
+%   Simo Särkkä (2013). Bayesian Filtering and Smoothing. Cambridge University Press. page 73
 ny = length(y);
 SUMv = zeros(ny, 1);
 SUMs = zeros(ny);
@@ -20,7 +21,7 @@ K = P_mink*H_x'/S;
 m_k = m_mink + K*v;
 P_k = P_mink - K*S*K';
 
-if norm(P_k, "fro") > frobNormBound
+if norm(P_k, "fro") > frobNormBound % reset covariance
     P_k = P_k./max(P_k, [], 'all').*rescaleFactor;
 end
 

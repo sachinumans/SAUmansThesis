@@ -1,7 +1,8 @@
 function [dx] = ImplicitEoM_gyrBod_dyns(x, u, pars, lr)
-%IMPLICITEOM_DYNS Summary of this function goes here
-%   Detailed explanation goes here
+%IMPLICITEOM_DYNS Returns the first derivative of the state x under input u 
+%   For the model of a gyroscopes upper body
 
+%% Unpack model
 Wi = pars.p_bio(1); l0 = pars.p_bio(2);  m = pars.p_bio(3); h = pars.p_bio(4);
 K_ss = pars.p_spring(1); b_ss = pars.p_spring(2);
 K_ds = pars.p_spring(3); b_ds = pars.p_spring(4);
@@ -15,12 +16,13 @@ rx = pars.p(9);
 ry = pars.p(10);
 alpha = pars.p(11);
 
+%% Divide states
 nC = x(1:3);
 ndC = x(4:6);
 nqb = x(7:10);
 ndqb = x(11:14);
 
-
+%% Translational dynamics
 % Get body orientation and VPP's
 nRb = quat2R(nqb);
 
@@ -33,7 +35,7 @@ nSy = diag([1 1 0])*nBy;
 
 
 % Get forces and moments
-nZ = [0;0;-m*9.81] + nRb*[0;10;0]; % Gravity
+nZ = [0;0;-m*9.81]; % Gravity
 
 switch lr
     case "LSS"
@@ -54,7 +56,7 @@ end
 
 bM = nRb'*nM;
 
-% Rotational dynamics
+%% Rotational dynamics
 bJgyr_x = diag([1 0.5 0.5])*alpha*m*rx^2;
 bJgyr_y = diag([0.5 1 0.5])*(1-alpha)*m*ry^2;
 bJc = bJgyr_y + bJgyr_x;

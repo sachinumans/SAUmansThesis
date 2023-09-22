@@ -1,5 +1,5 @@
 function [legLen] = state2legLength(x, p)
-%STATE2LEGLENGTH Summary of this function goes here
+%STATE2LEGLENGTH Transforms the state into the leg length
 %   Detailed explanation goes here
 %% Unpack parameters
 g =     p{1};       % Gravity constant

@@ -6,11 +6,11 @@ Tn = length(T);
 
 pars = mp2pars(modelParams);
 
-SSduration = 40;
-DSduration = 15;
+SSduration = 40; % Fixed single stance duration
+DSduration = 15; % Fixed double stance duration
 k_switch = [];
 
-walvel = 0.9;
+walvel = 0.9; % Mean walking velocity
 
 %% Initialise
 % x0 = [0; 0; 1.08;
@@ -27,7 +27,7 @@ x0(7:10) = x0(7:10)./norm(x0(7:10));
 u{1} = x0(1:2) + [-0.065; -0.08];
 
 xSim = [x0, nan(14, Tn-1)];
-gaitCycle = ["rDSl", "LSS", "lDSr", "RSS"]; gaitCycle = circshift(gaitCycle, -1);
+gaitCycle = ["LSS", "lDSr", "RSS", "rDSl"];
 gaitCycle0 = gaitCycle;
 
 SSremainder = SSduration;
@@ -36,7 +36,7 @@ DSremainder = DSduration;
 %% Run model
 for k = 2:Tn
     xSim(:, k) = xSim(:, k-1) + Ts*ImplicitEoM_gyrBod_dyns(xSim(:, k-1), u{end}, pars, gaitCycle(1)); % Propagate model
-    xSim(7:10, k) = xSim(7:10, k)./norm(xSim(7:10, k));
+    xSim(7:10, k) = xSim(7:10, k)./norm(xSim(7:10, k)); % Renormalise quaternion
 
     % phase change detection
     [nextF, L] = StepControllerFPE(xSim(:, k), modelParams.physical.l0, modelParams.physical.Wi,...
@@ -46,27 +46,29 @@ for k = 2:Tn
     switch gaitCycle(1)
         case {"LSS", "RSS"}
             SSremainder = SSremainder -1;
-            if SSremainder <= 0
+            if SSremainder <= 0 % Single stance has ended
                 k_switch = [k_switch k];
-                if gaitCycle(1) == "LSS"
+                if gaitCycle(1) == "LSS" % New foot position
                     u{end+1} = [u{end}, nextF];
                 elseif gaitCycle(1) == "RSS"
                     u{end+1} = [nextF, u{end}];
                 end
 
+                % reset
                 gaitCycle = circshift(gaitCycle, -1);
                 SSremainder = SSduration;
             end
         case {"rDSl", "lDSr"}
             DSremainder = DSremainder -1;
-            if DSremainder <= 0
+            if DSremainder <= 0 % Double stance has ended
                 k_switch = [k_switch k];
-                if gaitCycle(1) == "lDSr"
+                if gaitCycle(1) == "lDSr" % Remove old foot position
                     u{end+1} = u{end}(:,2);
                 elseif gaitCycle(1) == "rDSl"
                     u{end+1} = u{end}(:,1);
                 end
 
+                % reset
                 gaitCycle = circshift(gaitCycle, -1);
                 DSremainder = DSduration;
             end
