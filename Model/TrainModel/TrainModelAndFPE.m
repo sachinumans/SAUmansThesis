@@ -13,7 +13,7 @@ dt = 1/120;
 k = (1:(120*10))+120*10; % Training data
 
 % w = [3 3 10, 1 1 1, 3 3 3 3, 1 1 1 1];
-w = [5 5 5, 1 1 1, 1 1 1 1, 1 1 1 1]; % State error weights
+w = [5 5 5, 2 2 2, 3 3 3 3, 1 1 1 1]; % State error weights
 w = diag(w./norm(w)); % Normalise weights
 BMthr = 0.05;
 
@@ -26,10 +26,10 @@ plotIO = true;
 % close all
 
 % Train gyroscope body
-modelParams = getModelParams_gyrBod_implicit(data, Trial, k, w, walkVel, BMthr, dt, plotIO);
-saveAllOpenFigs("TrainingPerformance_FlywheelBody");
-close all
-save modelParams_gyrBod modelParams Trial k w 
+% modelParams = getModelParams_gyrBod_implicit(data, Trial, k, w, walkVel, BMthr, dt, plotIO);
+% saveAllOpenFigs("TrainingPerformance_FlywheelBody");
+% close all
+% save modelParams_gyrBod modelParams Trial k w 
 
 % return
 

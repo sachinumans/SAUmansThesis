@@ -89,16 +89,16 @@ disp("Obtained spring parameters, proceeding with genetic algorithm")
 %         alpha = p(11);
 %         bJ_stat = diag(p(12:14));
 
-lb_vpp      = [-0.5,-0.5]; %[Vl, Vs]
+lb_vpp      = [-0.2,0]; %[Vl, Vs]
 ub_vpp      = [1 1];
-lb_gam      = -1e20;
-ub_gam      = 1e20;
+lb_gam      = -1e10;
+ub_gam      = 1e10;
 lb_r        = 0;
 ub_r        = 1e3;
 lb_alpha    = 0;
 ub_alpha    = 1;
 lb_preload = 0;
-ub_preload = 0.5;
+ub_preload = 1;
 lb_J   = [0, 0, 0]; %[Jxx, Jyy, Jzz]
 ub_J   = [  m/12*(Wi^2 + data(Trial).Participant.Height^2),... Ixx
             m/12*(Wi^2 + data(Trial).Participant.Height^2),... Iyy
@@ -107,15 +107,15 @@ ub_J   = [  m/12*(Wi^2 + data(Trial).Participant.Height^2),... Ixx
 lb = [lb_vpp, lb_vpp(1), lb_vpp, lb_preload, lb_gam, lb_gam, lb_r, lb_r, lb_alpha, lb_J];
 ub = [ub_vpp, ub_vpp(1), ub_vpp, ub_preload, ub_gam, ub_gam, ub_r, ub_r, ub_alpha, ub_J];
 
-pars.p_spring = p_spring;
+% pars.p_spring = p_spring;
 pars.p_bio = p_bio;
 
-Pga = ga(@(p)compareModelPerStrideGA_combiBod(p, pars, w, k, xMeas, walkVel, gaitCycle, bound,...
+Pga = ga(@(p)compareModelPerStrideGA_combiBod([p p_spring], pars, w, k, xMeas, walkVel, gaitCycle, bound,...
     LgrfPos, RgrfPos, LgrfVec, RgrfVec, LgrfMag, RgrfMag, LLML, LGTR, RLML, RGTR, dt, false),...
     length(lb),[],[],[],[],...
     lb,...
     ub, [],[],...
-    optimoptions('ga','UseParallel', true, 'UseVectorized', false,'MaxTime', 10*60));
+    optimoptions('ga','UseParallel', true, 'UseVectorized', false,'MaxTime', 0.5*60));
 
 disp("Obtained initialisation body parameters, proceeding with fmincon")
 
@@ -138,7 +138,7 @@ Pinit = [Pga, K_ss, b_ss, K_ds, 0];
 Popt = fmincon(@(p)compareModelPerStrideFMC_combiBod(p, pars, w, k, xMeas, walkVel, gaitCycle, bound,...
     LgrfPos, RgrfPos, LgrfVec, RgrfVec, LgrfMag, RgrfMag, LLML, LGTR, RLML, RGTR, dt, false),...
     Pinit, [],[],[],[],...
-    [lb, 0, 0, 0, 0],[ub, 1e6, 1e3, 1e6, 1e3], [],...
+    [lb, 0.8*p_spring],[ub, 1.2*p_spring(1:3), 2*b_ss], [],...
     optimoptions('fmincon','UseParallel',true));
 
 

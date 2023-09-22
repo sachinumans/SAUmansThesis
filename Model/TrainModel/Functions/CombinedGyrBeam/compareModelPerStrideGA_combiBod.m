@@ -1,8 +1,6 @@
 function [ResNorm] = compareModelPerStrideGA_combiBod(p, pars, w, k, xMeas, walkVel, gaitCycle, bound,...
     LgrfPos, RgrfPos, LgrfVec, RgrfVec, LgrfMag, RgrfMag, LLML, LGTR, RLML, RGTR, dt, plotIO)
 Wi = pars.p_bio(1); l0 = pars.p_bio(2);  m = pars.p_bio(3); h = pars.p_bio(4);
-K_ss = pars.p_spring(1); b_ss = pars.p_spring(2);
-K_ds = pars.p_spring(3); b_ds = pars.p_spring(4);
 Vl_ss = p(1); Vs_ss = p(2);
 Vl_ds = p(3);
 Vs_bl = p(4); Vs_fl = p(5);
@@ -13,8 +11,11 @@ rx = p(9);
 ry = p(10);
 alpha = p(11);
 bJ_stat = diag(p(12:14));
-
 pars.p = p;
+
+K_ss = p(15); b_ss = p(16);
+K_ds = p(17); b_ds = p(18);
+pars.p_spring = p(12:15);
 
 P = {0, 0, 0, 0, Wi, 0, h, l0+l_preload, [], [], [], [], [], []};
 grfModel = cat(3, nan(3, 2, k(1)-1), nan(3, 2,length(k)));

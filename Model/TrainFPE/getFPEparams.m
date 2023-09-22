@@ -18,7 +18,7 @@ xMeas = meas2state(data, Trial, k);
 controlStep = [];
 for idx = k_step-k(1)
     [nextF, ~] = StepControllerFPE(xMeas(:,idx), l0, Wi, h, walkVel);
-    controlStep = [controlStep nextF];
+    controlStep = [controlStep nextF - xMeas(1:2,idx)];
 end
 
 controlParam = [mean(abs(realStep(:,1)))/mean(abs(controlStep(1,:))), (mean(realStep(:,2))-mean(controlStep(2,:)))];

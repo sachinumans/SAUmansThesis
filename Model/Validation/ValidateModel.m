@@ -36,7 +36,7 @@ k = (k(end)+ 1):6000;
     getModelValParams_gyrBodV1(data, Trial, k, BMthr);
 
 ValPerf(1).eight = compareModelPerStrideFMC_combiBod(p, pars, w, k, xMeas, walkVel, gaitCycle, bound,...
-    LgrfPos, RgrfPos, LgrfVec, RgrfVec, LgrfMag, RgrfMag, LLML, LGTR, RLML, RGTR, dt, true)
+    LgrfPos, RgrfPos, LgrfVec, RgrfVec, LgrfMag, RgrfMag, LLML, LGTR, RLML, RGTR, dt, 0)
 % saveAllOpenFigs("ValidationPerformance_BeamAndFlywheelBody");
 % close all
 
@@ -125,7 +125,7 @@ k = 1200:6000;
 % ValPerf(2).thirtytwo = compareModelPerStrideFMC_GyrBod(p, p_bio, w, k, xMeas, walkVel, gaitCycle,...
 %     bound, LgrfPos, RgrfPos, LgrfVec, RgrfVec, LgrfMag, RgrfMag, LLML, LGTR, RLML, RGTR, dt, false)
 ValPerf(2).thirtytwo = compareModelPerStrideFMC_GyrBod_implicit(p, pars, w, k, xMeas, walkVel, gaitCycle, bound,...
-    LgrfPos, RgrfPos, LgrfVec, RgrfVec, LgrfMag, RgrfMag, LLML, LGTR, RLML, RGTR, dt, 1)
+    LgrfPos, RgrfPos, LgrfVec, RgrfVec, LgrfMag, RgrfMag, LLML, LGTR, RLML, RGTR, dt, 0)
 
 % 1.6 walking speed
 Trial = 11

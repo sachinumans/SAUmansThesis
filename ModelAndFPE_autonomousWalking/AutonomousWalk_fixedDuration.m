@@ -90,6 +90,7 @@ end
 ylim([-2, 2])
 xlabel("Time / s")
 ylabel("Position / m")
+title("CoM")
 
 subplot(3, 2, 2);
 plot(T, xSim(4,:), 'b-.', DisplayName='dx'); hold on
@@ -107,6 +108,7 @@ plot(T, xSim(10,:), 'b:',  DisplayName='q3')
 legend(AutoUpdate="off")
 xlabel("Time / s")
 ylabel("Rotation")
+title("Quaternion")
 
 subplot(3, 2, 4);
 plot(T, xSim(11,:), 'b-.', DisplayName='dq0'); hold on
@@ -126,6 +128,7 @@ ylabel("N_x")
 for p = u
     plot(p{:}(2), p{:}(1), 'b^')
 end
+title("Topdown view")
 
 sgtitle("Autonomous walking with FPE and fixed phase duration")
 
