@@ -1,4 +1,4 @@
-function [meas, measNames] = data2imuMeas(data, Trial, k, sensors, varAcc, varGyr)
+function [meas, measNames] = data2imuMeas(data, Trial, k, sensors, plc, varAcc, varGyr)
 % DATA2IMUMEAS Transforms optical marker data as provided by Van der Zee to
 % emulated IMU measurements
 % data: marker data
@@ -6,7 +6,8 @@ function [meas, measNames] = data2imuMeas(data, Trial, k, sensors, varAcc, varGy
 % k: time indices
 % sensors: String array with active sensors
 %     UB = Upper Body
-%     ["UB_ASI", "UB_AC", "Lfoot", "Rfoot"]
+%     ["UB", "Lfoot", "Rfoot"]
+% plc: [0 1], sensor placement between ASI and AC, 0 = at hip, 1 = at shoulderheight
 % varAcc, varGyr: variances on accelerometer and gyroscpe measurement noise
 
 %% Extract data
@@ -37,17 +38,15 @@ LgrfPos = data(Trial).Force.cop1(10:10:end,:);
 meas = [];
 measNames = [];
 
-for s = ["UB_ASI", "UB_AC", "Lfoot", "Rfoot"]
+for s = ["UB", "Lfoot", "Rfoot"]
 if any(contains(sensors, s, "IgnoreCase", true))
     switch s
-        case "UB_ASI"
-            IMUmeas = trunkmarkers2imu(LASI, RASI, LAC, RAC, k, 0);
-        case "UB_AC"
-            IMUmeas = trunkmarkers2imu(LASI, RASI, LAC, RAC, k, 1);
-        case "Lfoot"
-            IMUmeas = footmarkers2imu(LLML, LMML, L5TH, k, "Left");
-        case "Rfoot"
-            IMUmeas = footmarkers2imu(LLML, LMML, L5TH, k, "Right");
+        case "UB"
+            IMUmeas = trunkmarkers2imu(LASI, RASI, LAC, RAC, k, plc);
+%         case "Lfoot"
+%             IMUmeas = footmarkers2imu(LLML, LMML, L5TH, k, "Left");
+%         case "Rfoot"
+%             IMUmeas = footmarkers2imu(LLML, LMML, L5TH, k, "Right");
     end
 
     noisyMeas = IMUmeas + blkdiag(eye(3).*sqrt(varAcc), eye(3).*sqrt(varGyr))*randn(6,1);
@@ -129,11 +128,11 @@ IMUmeas = [accF; angVelF];
 end
 
 function IMUmeas = trunkmarkers2imu(LASI, RASI, LAC, RAC, k, hRatio)
-CASI = (LASI(k-2:k,:) + RASI(k-2:k,:))./2;
-CAC = (LAC(k-2:k,:) + RAC(k-2:k,:))./2;
+CASI = (LASI(k-1:k+1,:) + RASI(k-1:k+1,:))./2;
+CAC = (LAC(k-1:k+1,:) + RAC(k-1:k+1,:))./2;
 imuPos = CASI + hRatio.* (CAC - CASI);
 
-accN = diff(imuPos, 2, 1).*120^2 + [0,0,-9.81]; % Acceleration in frame N
+accN =  (CASI(3,:) - CASI(1,:))*60 + [0,0,-9.81]; % Acceleration in frame N
 
 % Orientation
 Y = LASI(k,:)-RASI(k,:);

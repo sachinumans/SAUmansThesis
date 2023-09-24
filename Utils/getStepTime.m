@@ -1,10 +1,8 @@
-function [k_step, realStep] = getStepTime(k, xMeas, walkVel, LgrfPos, RgrfPos, LgrfVec, RgrfVec, gaitCycle, bound, dt) 
-% GETSTEPTIME Retrieves the time indices of gait phase transitions
-
+function [k_step, realStep, k_Lift] = getStepTime(k, xMeas, walkVel, LgrfPos, RgrfPos, LgrfVec, RgrfVec, gaitCycle, bound, dt) 
 LgrfMag = vecnorm(LgrfVec', 2, 1);
 RgrfMag = vecnorm(RgrfVec', 2, 1);
 
-k_step = []; realStep = [];
+k_step = []; realStep = []; k_Lift = [];
 ki = k(1); idx = 1;
 while ki < k(end)-30
     k1 = ki;
@@ -12,24 +10,26 @@ while ki < k(end)-30
         case "lSS"
             [~, ki_next] = find(RgrfMag(ki:end)>bound, 1);
             k_end = ki+ ki_next;
+            k_Lift = [k_Lift ki];
             
             gaitCycle = circshift(gaitCycle, -1);
         case "rSS"
             [~, ki_next] = find(LgrfMag(ki:end)>bound, 1);
             k_end = ki+ ki_next;
+            k_Lift = [k_Lift ki];
             
             gaitCycle = circshift(gaitCycle, -1);
         case "lDSr"
             [~, ki_next] = find(LgrfMag(ki:end)<bound, 1);
             k_end = ki+ ki_next;
-            k_step = [k_step k_end];
+            k_step = [k_step ki];
             realStep = [realStep; mean(RgrfPos(k1:k_end,1:2) + (walkVel(1:2)'*(0:(k_end-k1)))'*dt, 1, "omitnan") - xMeas(1:2, idx)'];
             
             gaitCycle = circshift(gaitCycle, -1);
         case "rDSl"
             [~, ki_next] = find(RgrfMag(ki:end)<bound, 1);
             k_end = ki+ ki_next;
-            k_step = [k_step k_end];
+            k_step = [k_step ki];
             realStep = [realStep; mean(LgrfPos(k1:k_end,1:2) + (walkVel(1:2)'*(0:(k_end-k1)))'*dt, 1, "omitnan") - xMeas(1:2, idx)'];
             
             gaitCycle = circshift(gaitCycle, -1);

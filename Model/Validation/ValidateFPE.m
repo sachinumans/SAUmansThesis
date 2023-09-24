@@ -31,6 +31,8 @@ xMeas = meas2state(data, Trial, k);
 
 %% Determine estimated foot placement at given step times
 [k_step, realStep, k_lift] = getStepTime(k, xMeas, walkVel, LgrfPos, RgrfPos, LgrfVec, RgrfVec, gaitCycle, bound, dt);
+realStep = xMeas(1:2, k_step-k(1)+1)' + realStep;
+
 controlStep = [];
 for idx = k_step-k(1)+1
     [nextF, ~] = StepControllerFPE(xMeas(:,idx), l0, Wi, h, walkVel);
@@ -78,12 +80,15 @@ xax = subplot(3,1,1);
 plot(k_step-k(1)+1, realStep(:,1), 'bx','DisplayName',"Measured"); hold on
 plot(k_step-k(1)+1, controlStep(1,:), 'rx','DisplayName',"Estimation at steptime")
 plot(k_step_FPE, FPEstep(1,:), 'ro', DisplayName='FPE')
+plot(k_step-k(1)+1, xMeas(1, k_step-k(1)+1), color="#EB9534", DisplayName='CoM trajectory')
+legend()
 title("x Validation")
 
 yax = subplot(3,1,2);
 plot(k_step-k(1)+1, realStep(:,2), 'bx','DisplayName',"Measured"); hold on
 plot(k_step-k(1)+1, controlStep(2,:), 'rx','DisplayName',"Estimation at steptime")
 plot(k_step_FPE, FPEstep(2,:), 'ro', DisplayName='FPE')
+plot(k_step-k(1)+1, xMeas(2, k_step-k(1)+1), color="#EB9534", DisplayName='CoM trajectory')
 title("y Validation")
 
 tax = subplot(3,1,3);
@@ -103,44 +108,4 @@ title("Detected step and liftoff times")
 linkaxes([xax yax tax],'x')
 
 %%
-function [k_step, realStep, k_Lift] = getStepTime(k, xMeas, walkVel, LgrfPos, RgrfPos, LgrfVec, RgrfVec, gaitCycle, bound, dt) 
-LgrfMag = vecnorm(LgrfVec', 2, 1);
-RgrfMag = vecnorm(RgrfVec', 2, 1);
 
-k_step = []; realStep = []; k_Lift = [];
-ki = k(1); idx = 1;
-while ki < k(end)-30
-    k1 = ki;
-    switch gaitCycle(1)
-        case "lSS"
-            [~, ki_next] = find(RgrfMag(ki:end)>bound, 1);
-            k_end = ki+ ki_next;
-            k_Lift = [k_Lift ki];
-            
-            gaitCycle = circshift(gaitCycle, -1);
-        case "rSS"
-            [~, ki_next] = find(LgrfMag(ki:end)>bound, 1);
-            k_end = ki+ ki_next;
-            k_Lift = [k_Lift ki];
-            
-            gaitCycle = circshift(gaitCycle, -1);
-        case "lDSr"
-            [~, ki_next] = find(LgrfMag(ki:end)<bound, 1);
-            k_end = ki+ ki_next;
-            k_step = [k_step ki];
-            realStep = [realStep; mean(RgrfPos(k1:k_end,1:2) + (walkVel(1:2)'*(0:(k_end-k1)))'*dt, 1, "omitnan") - xMeas(1:2, idx)'];
-            
-            gaitCycle = circshift(gaitCycle, -1);
-        case "rDSl"
-            [~, ki_next] = find(RgrfMag(ki:end)<bound, 1);
-            k_end = ki+ ki_next;
-            k_step = [k_step ki];
-            realStep = [realStep; mean(LgrfPos(k1:k_end,1:2) + (walkVel(1:2)'*(0:(k_end-k1)))'*dt, 1, "omitnan") - xMeas(1:2, idx)'];
-            
-            gaitCycle = circshift(gaitCycle, -1);
-    end
-
-    idx = idx+k_end-ki;
-    ki = k_end;
-end
-end

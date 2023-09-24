@@ -26,10 +26,10 @@ plotIO = true;
 % close all
 
 % Train gyroscope body
-% modelParams = getModelParams_gyrBod_implicit(data, Trial, k, w, walkVel, BMthr, dt, plotIO);
-% saveAllOpenFigs("TrainingPerformance_FlywheelBody");
-% close all
-% save modelParams_gyrBod modelParams Trial k w 
+modelParams = getModelParams_gyrBod_implicit(data, Trial, k, w, walkVel, BMthr, dt, plotIO);
+saveAllOpenFigs("TrainingPerformance_FlywheelBody");
+close all
+save modelParams_gyrBod modelParams Trial k w 
 
 % return
 
