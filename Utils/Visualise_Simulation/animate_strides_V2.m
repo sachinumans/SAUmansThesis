@@ -130,10 +130,10 @@ end
     function [] = plotLegs()
     subplot(simax);
     switch gaitCycle(1)
-        case "LSS"
+        case {"LSS", "lSS"}
             plot3([u{ku}(1) Ntorso(1,5)], [u{ku}(2) Ntorso(2,5)], [0 Ntorso(3,5)], 'b-'); hold on;
             plot3(u{ku}(1), u{ku}(2), 0, 'b^')
-        case "RSS"
+        case {"RSS", "rSS"}
             plot3([u{ku}(1) Ntorso(1,6)], [u{ku}(2) Ntorso(2,6)], [0 Ntorso(3,6)], 'b-'); hold on;
             plot3(u{ku}(1), u{ku}(2), 0, 'b^')
         case {"lDSr", "rDSl"}
@@ -165,7 +165,7 @@ end
     subplot(sagax)
     plot(xSim(1,k), xSim(3,k), 'rx'); hold on
     switch gaitCycle(1)
-        case {"LSS", "RSS"}
+        case {"LSS", "lSS", "RSS", "rSS"}
             Nvpp = xSim(1:3,k) + nRb*Bvpp_ss;
             plot(Nvpp(1,1), Nvpp(3,1), 'ro')
             axis([xSim(1,k)-1 xSim(1,k)+1 0 2.5])
@@ -198,9 +198,9 @@ end
     subplot(sagax)
     title("Sag. plane & VPP & GRF")
     switch gaitCycle(1)
-        case "LSS"
+        case {"LSS", "lSS"}
             plot(u{ku}(1)+[0 nG(1)], [0 nG(3)], 'b')
-        case "RSS"
+        case {"RSS", "rSS"}
             plot(u{ku}(1)+[0 nG(1)], [0 nG(3)], 'b--')
         case {"lDSr", "rDSl"}
             plot(u{ku}(1, 1)+[0 nG(1, 1)], [0 nG(3, 1)], 'b')
@@ -211,9 +211,9 @@ end
     subplot(latax)
     title("Lat. plane & VPP & GRF")
     switch gaitCycle(1)
-        case "LSS"
+        case {"LSS", "lSS"}
             plot(u{ku}(2)+[0 nG(2)], [0 nG(3)], 'b')
-        case "RSS"
+        case {"RSS", "rSS"}
             plot(u{ku}(2)+[0 nG(2)], [0 nG(3)], 'b--')
         case {"lDSr", "rDSl"}
             plot(u{ku}(2, 1)+[0 nG(2, 1)], [0 nG(3, 1)], 'b')
@@ -230,9 +230,9 @@ end
     Xlab = reordercats(Xlab,{'Left','Right'});
 
     switch gaitCycle(1)
-        case "LSS"
+        case {"LSS", "lSS"}
             Y = [norm(nG), 0];
-        case "RSS"
+        case {"RSS", "rSS"}
             Y = [0, norm(nG)];
         case {"lDSr", "rDSl"}
             Y = vecnorm(nG, 2, 1);

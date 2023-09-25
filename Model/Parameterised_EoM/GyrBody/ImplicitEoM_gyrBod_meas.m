@@ -38,10 +38,10 @@ nSy = diag([1 1 0])*nBy;
 nZ = [0;0;-m*9.81]; % Gravity
 
 switch lr
-    case "LSS"
+    case {"LSS", "lSS"}
         [nG, nM] = ssGRF(lr);
         nddC = (nG + nZ)/m;
-    case "RSS"
+    case {"RSS", "rSS"}
         [nG, nM] = ssGRF(lr);
         nddC = (nG + nZ)/m;
     case "lDSr"
@@ -111,9 +111,9 @@ y = [bddS; bOmeg];
     nrgHat = nrg./sqrt(nrgNormSq); % direction of GRF
 
     switch lr
-        case "LSS"
+        case {"LSS", "lSS"}
             nHL = nC - h*nBz + Wi/2*nBy; % Left hip
-        case "RSS"
+        case {"RSS", "rSS"}
             nHL = nC - h*nBz - Wi/2*nBy; % Right hip
         otherwise
             error("Invalid input")

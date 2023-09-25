@@ -18,23 +18,26 @@ k = (1:(120*10))+2820;
 ws = 240;
 
 % UKF tuning parameters
-alpha = 1e-4;
-beta = 2;
+alpha = 1e-2;
+beta = 1;
 kappa = 0;
+% lambda = alpha^2*(nx + kappa) - nx;
+% Wc_0 = Wm_0 + 1 - alpha^2 + beta;
 
 % Define sensor position
 sens_hRatio = 0.33;
-bS = [-0.12; 0; 0.25]; % A third up the back
+bS = [-0.08; 0; 0.8*sens_hRatio]; % A third up the back
 
 varAcc = 2;
 varGyr = 1;
 
 % Uncertainty matrices
+% Qcov = eye(14)*5e-3;
+Qcov = blkdiag(1e-8*eye(3), 1e-2*eye(3), 1e-8*eye(4), 1e-2*eye(4));
 Rcov = blkdiag(eye(3).*varAcc, eye(3).*varGyr);
-Qcov = eye(14)*1e-1;
 
 Pcov = nan(14,14,length(k));
-Pcov(:,:,1) = 1e-1*eye(14);
+Pcov(:,:,1) = 1e-4*eye(14);
 
 UseFPE = false;
 UseGivenStepTime = true;
@@ -59,12 +62,14 @@ elseif gaitCycle(1) == "rSS"
     u{1} = RgrfPos(k(1), 1:2)';
     gaitCycle(1) = "RSS";
 end
+u_real = u;
 
 xMeas = meas2state(data, Trial, k);
+xMeas(1:3,:) = xMeas(1:3,:) + (0:length(xMeas)-1).*walkVel'*dt;
+xMeas(4:6,:) = xMeas(4:6,:) + walkVel';
 y = nan(6,length(k));
 
 x0 = xMeas(:,1);
-x0(4:6) = x0(4:6) + walkVel';
 xHat = [x0 , nan(14, length(xMeas)-1)];
 
 pars = mp2pars(modelParams);
@@ -77,6 +82,7 @@ filtState = zeros(modelParams.FPE.nFilt, 1);
 
 k_impact = [];
 k_liftoff = [];
+k_gaitPhaseChange = [];
 
 %% Collect measurements
 for idx = 1:length(k)
@@ -86,32 +92,35 @@ end
 [k_step, realStep, k_lift] = getStepTime(k, xMeas, walkVel, LgrfPos, RgrfPos, LgrfVec, RgrfVec, gaitCycle0, bound, dt) ;
 
 %% Loop through time
+realStepBin = realStep;
+
+tic
 for idx = 2:length(xMeas)
     % UKF
-    [m_mink,P_mink] = UKF_I_Prediction(@(t, x, u) ImplicitEoM_gyrBod_dyns(x, u', pars, gaitCycle(1)),...
+    [m_mink,P_mink] = UKF_I_Prediction(@(t, x, u) x + dt*ImplicitEoM_gyrBod_dyns(x, u', pars, gaitCycle(1)),...
         xHat(:,idx-1), u{end}, Pcov(:,:,idx-1), Qcov, alpha, beta, kappa);
     % Bruteforce real positive definite P
-%     P_mink = rescaleCov(P_mink, 10, 2e-4);
+    %     P_mink = rescaleCov(P_mink, 10, 2e-4);
     P_mink = forceRealPosDef(P_mink);
-    
+
     [xHat(:,idx), Pcov(:,:,idx)] = UKF_I_Update(y(:,idx), ...
         @(t, x, u) ImplicitEoM_gyrBod_meas(x, u', pars, bS, gaitCycle(1)), ...
         m_mink, u{end}, P_mink, Rcov, alpha, beta, kappa);
 
     % Bruteforce real positive definite P
-%     Pcov(:,:,idx) = rescaleCov(Pcov(:,:,idx), 10, 2e-4);
+    %     Pcov(:,:,idx) = rescaleCov(Pcov(:,:,idx), 10, 2e-4);
     Pcov(:,:,idx) = forceRealPosDef(Pcov(:,:,idx));
-    
+
     xHat(7:10,idx) = xHat(7:10,idx)./norm(xHat(7:10,idx)); % renormalise
-    
+
     % FPE
     if UseFPE || ~UseGivenStepTime
-    [nextF, L] = StepControllerFPE(xSim(:, k), modelParams.physical.l0, modelParams.physical.Wi,...
-        modelParams.physical.h, [0;0;0]);
-    nextF = xSim(1:2, k) + diag([modelParams.FPE.SW, 1])*nextF + [0;modelParams.FPE.SL];
+        [nextF, L] = StepControllerFPE(xHat(:, idx), modelParams.physical.l0, modelParams.physical.Wi,...
+            modelParams.physical.h, [0;0;0]);
+        nextF = xHat(1:2, idx) + diag([modelParams.FPE.SW, 1])*nextF + [0;modelParams.FPE.SL];
 
-    Lws = circshift(Lws, 1);
-    Lws(1) = L;
+        Lws = circshift(Lws, 1);
+        Lws(1) = L;
     end
 
     % Gait phase change detection
@@ -130,36 +139,112 @@ for idx = 2:length(xMeas)
 
     if impactIO
         k_impact = [k_impact idx];
+        k_gaitPhaseChange = [k_gaitPhaseChange idx];
         if UseFPE
             switch gaitCycle(1)
-                case "LSS" % New foot position
+                case {"LSS", "lSS"} % New foot position
                     u{end+1} = [u{end}, nextF];
-                case "RSS"
+                    u_real{end+1} = [u_real{end}, xMeas(1:2,idx) + realStepBin(1, :)'];
+                case {"RSS", "rSS"}
                     u{end+1} = [nextF, u{end}];
+                    u_real{end+1} = [xMeas(1:2,idx) + realStepBin(1, :)', u_real{end}];
             end
         else
             switch gaitCycle(1)
-                case "LSS" % New foot position
-                    u{end+1} = [u{end}, xMeas(1:2,idx) + realStep];
-                case "RSS"
-                    u{end+1} = [xMeas(1:2,idx) + realStep, u{end}];
+                case {"LSS", "lSS"} % New foot position
+                    u{end+1} = [u{end}, xHat(1:2,idx) + realStepBin(1, :)'];
+                    u_real{end+1} = [u_real{end}, xMeas(1:2,idx) + realStepBin(1, :)'];
+                case {"RSS", "rSS"}
+                    u{end+1} = [xHat(1:2,idx) + realStepBin(1, :)', u{end}];
+                    u_real{end+1} = [xMeas(1:2,idx) + realStepBin(1, :)', u_real{end}];
             end
+            realStepBin = realStepBin(2:end, :);
         end
+        gaitCycle = circshift(gaitCycle, -1);
+%         gaitCycle(1)
+%         u{end}
     end
 
     if loIO
         k_liftoff = [k_liftoff idx];
+        k_gaitPhaseChange = [k_gaitPhaseChange idx];
         switch gaitCycle(1)
             case "lDSr" % Remove old foot position
                 u{end+1} = u{end}(:,2);
+                u_real{end+1} = u_real{end}(:,2);
             case "rDSl"
                 u{end+1} = u{end}(:,1);
+                u_real{end+1} = u_real{end}(:,1);
         end
+        gaitCycle = circshift(gaitCycle, -1);
+%         gaitCycle(1)
+%         u{end}
     end
-
-
-    
 end
+toc
+
+%% Plot
+t = (0:(idx-1))*dt;
+
+figure(WindowState="maximized")
+subplot(2,2,1);
+plot(t, xMeas(1,1:idx), 'r--','DisplayName',"Meas - $x$")
+hold on
+plot(t, xMeas(2,1:idx), 'r-.','DisplayName',"Meas - $y$")
+plot(t, xMeas(3,1:idx), 'r','DisplayName',"Meas - $z$")
+plot(t, xHat(1,1:idx), 'b--','DisplayName',"Obs - $\hat{x}$")
+plot(t, xHat(2,1:idx), 'b-.','DisplayName',"Obs - $\hat{y}$")
+plot(t, xHat(3,1:idx), 'b','DisplayName',"Obs - $\hat{z}$")
+legend('AutoUpdate', 'off','Interpreter','latex')
+gaitCycle = gaitCycle0;
+for i = k_gaitPhaseChange
+    xline(t(i), 'k-', {gaitCycle(1)})
+    gaitCycle = circshift(gaitCycle, -1);
+end
+xlabel("seconds")
+ylabel("meters")
+ylim([-0.5 2])
+
+subplot(2,2,2);
+plot(t, xMeas(4,1:idx), 'r--','DisplayName',"Meas - $\dot{x}$")
+hold on
+plot(t, xMeas(5,1:idx), 'r-.','DisplayName',"Meas - $\dot{y}$")
+plot(t, xMeas(6,1:idx), 'r','DisplayName',"Meas - $\dot{z}$")
+plot(t, xHat(4,1:idx), 'b--','DisplayName',"Obs - $\dot{\hat{x}}$")
+plot(t, xHat(5,1:idx)', 'b-.','DisplayName',"Obs - $\dot{\hat{y}}$")
+plot(t, xHat(6,1:idx), 'b','DisplayName',"Obs - $\dot{\hat{z}}$")
+legend('AutoUpdate', 'off','Interpreter','latex')
+ylim([-2 2])
+
+subplot(2,2,3);
+plot(t, xMeas(7,1:idx), 'r','DisplayName',"Meas - $q_0$")
+hold on
+plot(t, xMeas(8,1:idx), 'r--','DisplayName',"Meas - $q_1$")
+plot(t, xMeas(9,1:idx), 'r-.','DisplayName',"Meas - $q_2$")
+plot(t, xMeas(10,1:idx), 'r:','DisplayName',"Meas - $q_3$")
+plot(t, xHat(7,1:idx), 'b','DisplayName',  "Obs - $\hat{q}_0$")
+plot(t, xHat(8,1:idx), 'b--','DisplayName',"Obs - $\hat{q}_1$")
+plot(t, xHat(9,1:idx), 'b-.','DisplayName',"Obs - $\hat{q}_2$")
+plot(t, xHat(10,1:idx), 'b:','DisplayName',"Obs - $\hat{q}_3$")
+legend('Interpreter','latex')
+ylim([-1.5 1.5])
+
+subplot(2,2,4);
+plot(t, xMeas(11,1:idx), 'r','DisplayName',"Meas - $\dot{q}_0$")
+hold on
+plot(t, xMeas(12,1:idx), 'r--','DisplayName',"Meas - $\dot{q}_1$")
+plot(t, xMeas(13,1:idx), 'r-.','DisplayName',"Meas - $\dot{q}_2$")
+plot(t, xMeas(14,1:idx), 'r:','DisplayName', "Meas - $\dot{q}_3$")
+plot(t, xHat(11,1:idx), 'b','DisplayName',  "Obs - $\dot{\hat{q}}_0$")
+plot(t, xHat(12,1:idx), 'b--','DisplayName',"Obs - $\dot{\hat{q}}_1$")
+plot(t, xHat(13,1:idx), 'b-.','DisplayName',"Obs - $\dot{\hat{q}}_2$")
+plot(t, xHat(14,1:idx), 'b:','DisplayName', "Obs - $\dot{\hat{q}}_3$")
+legend('Interpreter','latex')
+ylim([-2 2])
+
+%% Animate
+% animate_strides_V2(t, xHat, gaitCycle0, k_gaitPhaseChange, u, modelParams)
+% animate_strides_V2(t, xMeas, gaitCycle0, k_gaitPhaseChange, u_real, modelParams)
 
 
 %% Functions
@@ -180,11 +265,12 @@ end
 
 function P = forceRealPosDef(P)
 [V,D] = eig(P);
-D = D.*sign(real(D));
+D = real(D).*sign(real(D));
 
-d = diag(real(D));
-d(d < 1e-4) = d(d < 1e-4)+ 1;
-D = diag(d);
+% d = diag(real(D));
+% d(d < 1e-4) = d(d < 1e-4)+ 1;
+% D = diag(d);
+D = max(min(D, speye(size(D))*1e8), speye(size(D))*1e-5);
 
 P = real(V*D/V);
 end

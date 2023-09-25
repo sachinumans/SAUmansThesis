@@ -7,7 +7,12 @@ Wc_i = Wm_i;
 
 c = sqrt(nx+lambda);
 % min(eig(P))
-sqrtP = chol(P,'lower');
+try
+    sqrtP = chol(P,'lower');
+catch ME
+    fprintf("Eigvals P min: %.2e ; max: %.2e \n", min(eig(P)), max(eig(P)))
+    rethrow(ME);
+end
 
 X_km1 = nan(nx, nx+1);
 X_km2 = nan(nx, nx);
