@@ -18,8 +18,8 @@ k = (1:(120*10))+2820;
 ws = 240;
 
 % UKF tuning parameters
-alpha = 1e-2;
-beta = 1;
+alpha = 5e-4;
+beta = 2;
 kappa = 0;
 % lambda = alpha^2*(nx + kappa) - nx;
 % Wc_0 = Wm_0 + 1 - alpha^2 + beta;
@@ -28,18 +28,19 @@ kappa = 0;
 sens_hRatio = 0.33;
 bS = [-0.08; 0; 0.8*sens_hRatio]; % A third up the back
 
-varAcc = 2;
-varGyr = 1;
+varAcc = 1;
+varGyr = 0.1;
 
 % Uncertainty matrices
 % Qcov = eye(14)*5e-3;
 Qcov = blkdiag(1e-8*eye(3), 1e-2*eye(3), 1e-8*eye(4), 1e-2*eye(4));
+% Rcov = eye(6)*1e-4;
 Rcov = blkdiag(eye(3).*varAcc, eye(3).*varGyr);
 
 Pcov = nan(14,14,length(k));
 Pcov(:,:,1) = 1e-4*eye(14);
 
-UseFPE = false;
+UseFPE = true;
 UseGivenStepTime = true;
 
 %% Get data
@@ -198,7 +199,7 @@ plot(t, xHat(3,1:idx), 'b','DisplayName',"Obs - $\hat{z}$")
 legend('AutoUpdate', 'off','Interpreter','latex')
 gaitCycle = gaitCycle0;
 for i = k_gaitPhaseChange
-    xline(t(i), 'k-', {gaitCycle(1)})
+    xline(t(i), 'k-', {gaitCycle(2)})
     gaitCycle = circshift(gaitCycle, -1);
 end
 xlabel("seconds")
@@ -270,7 +271,7 @@ D = real(D).*sign(real(D));
 % d = diag(real(D));
 % d(d < 1e-4) = d(d < 1e-4)+ 1;
 % D = diag(d);
-D = max(min(D, speye(size(D))*1e8), speye(size(D))*1e-5);
+D = max(min(D, speye(size(D))*1e6), speye(size(D))*1e-7);
 
 P = real(V*D/V);
 end

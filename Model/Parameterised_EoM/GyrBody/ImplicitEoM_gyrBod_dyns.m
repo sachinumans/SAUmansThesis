@@ -35,7 +35,7 @@ nSy = diag([1 1 0])*nBy;
 
 
 % Get forces and moments
-nZ = [0;0;-m*9.81] + nRb*[100; 0; 0]; % Gravity
+nZ = [0;0;-m*9.81] + nRb*[0; 0; 0]; % Gravity
 
 switch lr
     case {"LSS", "lSS"}
