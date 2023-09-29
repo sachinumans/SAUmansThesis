@@ -1,4 +1,4 @@
-function [dx, bGRF] = EoM_model(x, u, phase, pars)
+function [dx, bGRF, bF_len, dbF_len] = EoM_model(x, u, phase, pars)
 %EOM_MODEL Equations of Motion in state space form for the human walking model
 %     x [14 1] State
 %     u [3 1] for single stance, [3 2] for double stance, Input, Foot
@@ -11,7 +11,7 @@ dnC = x(4:6);
 nqb = x(7:10);
 dnqb = x(11:14);
 
-[m, ~, ~, Kss, bss, Kds, bds, l0, ...
+[m, ~, ~, l0ss, Kss, bss, l0ds, Kds, bds, ...
         Vs_ss, Vl_ss, Vs_ds_fl, Vs_ds_bl, Vl_ds, ...
         alpha, rx, gamx , ry, gamy, ...
         Jxx, Jyy, Jzz] = pars2vars(); % Unpack model parameters
@@ -35,7 +35,7 @@ end
 %% Find the ground reaction force direction
 Q = quat2matr(nqb);
 Qbar = quat2barmatr(nqb);
-nRb = [zeros(3,1), eye(3)] * Q*Qbar'; % Rotation matrix B to N
+nRb = [zeros(3,1), eye(3)] * Q*Qbar' *[zeros(3,1), eye(3)]'; % Rotation matrix B to N
 
 switch phase
     case {"lSS", "LSS", "rSS", "RSS"}
@@ -53,13 +53,22 @@ end
 switch phase
     case {"lSS", "LSS", "rSS", "RSS"}
         bF_len = norm(bF);
-        GRFmagSS = (Kss*(l0 - bF_len) + bss*dot(nRb.'*-dnC, bF)/bF_len)/dot(bGRFdirSS, bF./bF_len);
+        dbF_len = dot(nRb.'*-dnC, bF)/bF_len;
+        GRFmagSS = (Kss*(l0ss - bF_len) + bss*dbF_len)/dot(bGRFdirSS, -bF./bF_len);
+        GRFmagSS = max(GRFmagSS, 0);
     case {"lDSr", "rDSl"}
         bFL_len = norm(bFL);
-        GRFmagL = (Kds*(l0 - bFL_len) + bds*dot(nRb.'*-dnC, bFL)/bFL_len)/dot(bGRFdirL, bFL./bFL_len);
+        dbFL_len = dot(nRb.'*-dnC, bFL)/bFL_len;
+        GRFmagL = (Kds*(l0ds - bFL_len) + bds*dbFL_len)/dot(bGRFdirL, -bFL./bFL_len);
+        GRFmagL = max(GRFmagL, 0);
     
         bFR_len = norm(bFR);
-        GRFmagR = (Kds*(l0 - bFR_len) + bds*dot(nRb.'*-dnC, bFR)/bFR_len)/dot(bGRFdirR, bFR./bFR_len);
+        dbFR_len = dot(nRb.'*-dnC, bFR)/bFR_len;
+        GRFmagR = (Kds*(l0ds - bFR_len) + bds*dbFR_len)/dot(bGRFdirR, -bFR./bFR_len);
+        GRFmagR = max(GRFmagR, 0);
+        
+        bF_len = [bFL_len, bFR_len];
+        dbF_len = [dbFL_len, dbFR_len];
     otherwise, error("Invalid phase");
 end
 
@@ -118,31 +127,37 @@ ddnqb = lsqminnorm(Estar, Dstar);
 dx = [dnC; ddnC; dnqb; ddnqb];
 
 %% Nested functions
-    function [m, Wi, h, Kss, bss, Kds, bds, l0, ...
+    function [m, Wi, h, l0ss, Kss, bss, l0ds, Kds, bds, ...
         Vs_ss, Vl_ss, Vs_ds_fl, Vs_ds_bl, Vl_ds, ...
         alpha, rx, gamx , ry, gamy, ...
         Jxx, Jyy, Jzz] = pars2vars()
-    m                  = pars(1);
-    Wi                 = pars(2);
-    h                  = pars(3);
-    Kss                = pars(4);
-    bss                = pars(5);
-    Kds                = pars(6);
-    bds                = pars(7);
-    l0                 = pars(8);
-    Vs_ss              = pars(9);
-    Vl_ss              = pars(10);
-    Vs_ds_fl           = pars(11);
-    Vs_ds_bl           = pars(12);
-    Vl_ds              = pars(13);
-    alpha              = pars(14);
-    rx                 = pars(15);
-    gamx               = pars(16);
-    ry                 = pars(17);
-    gamy               = pars(18);
-    Jxx                = pars(19);
-    Jyy                = pars(20);
-    Jzz                = pars(11);
+    idx = 1;
+    m                  = pars(idx); idx = idx + 1;
+    Wi                 = pars(idx); idx = idx + 1;
+    h                  = pars(idx); idx = idx + 1;
+
+    l0ss               = pars(idx); idx = idx + 1;
+    Kss                = pars(idx); idx = idx + 1;
+    bss                = pars(idx); idx = idx + 1;
+    l0ds               = pars(idx); idx = idx + 1;
+    Kds                = pars(idx); idx = idx + 1;
+    bds                = pars(idx); idx = idx + 1;
+
+    Vs_ss              = pars(idx); idx = idx + 1;
+    Vl_ss              = pars(idx); idx = idx + 1;
+    Vs_ds_fl           = pars(idx); idx = idx + 1;
+    Vs_ds_bl           = pars(idx); idx = idx + 1;
+    Vl_ds              = pars(idx); idx = idx + 1;
+
+    alpha              = pars(idx); idx = idx + 1;
+    rx                 = pars(idx); idx = idx + 1;
+    gamx               = pars(idx); idx = idx + 1;
+    ry                 = pars(idx); idx = idx + 1;
+    gamy               = pars(idx); idx = idx + 1;
+
+    Jxx                = pars(idx); idx = idx + 1;
+    Jyy                = pars(idx); idx = idx + 1;
+    Jzz                = pars(idx); idx = idx + 1;
     end
 
     function [bPs_ss, bPl_ss, bPs_ds_fl, bPs_ds_bl, bPl_ds] = vars2VPP()

@@ -9,7 +9,7 @@ RgrfMag = vecnorm(RgrfVec', 2, 1);
 Ll = vecnorm(LLML-LGTR, 2, 2)';% + min(LLML(:,3));
 Rl = vecnorm(RLML-RGTR, 2, 2)';% + min(RLML(:,3));
 
-LgrfMagPar = dot(LgrfVec(k, :)', -(LLML-LGTR)')./Ll;
+LgrfMagPar = dot(LgrfVec(k, :)', -(LLML-LGTR)')./Ll; % Parallel
 RgrfMagPar = dot(RgrfVec(k, :)', -(RLML-RGTR)')./Rl;
 
 k_switch = [];
