@@ -172,13 +172,24 @@ pOpt_bounds = [ 0.95*m 1.05*m; ...       m
     0 m/12*(Wi^2 + data(Trial).Participant.Height^2);... Iyy
     0 m/12*(Wi^2 + Wi^2) + m*(0.5*data(Trial).Participant.Height)^2]; % Izz
 
-A_opt = []; b_opt = []; Aeq_opt = []; beq_opt = [];
+A_opt = []; b_opt = []; % Aeq_opt = []; beq_opt = [];
+
+paramList = {'m', 'Wi', 'h', ...
+    'l0ss', 'Kss', 'bss', 'l0ds', 'Kds', 'bds', ...
+    'Vs_ss','Vl_ss','Vs_ds_fl','Vs_ds_bl','Vl_ds', ...
+    'alpha', 'rx', 'gamx', 'ry', 'gamy', ...
+    'Jxx', 'Jyy', 'Jzz'};
 
 %%% First round of optimization
-pOpt_idx = 10:22;
-Aeq_opt = [Aeq_opt; [zeros(1, 2) 1 -1 zeros(1, 9)]]; beq_opt = [beq_opt; 0]; % Vs_ds_fl==Vs_ds_fl
+pOpt_list = {'Vs_ss','Vl_ss','Vs_ds_fl','Vs_ds_bl','Vl_ds', ...
+    'alpha', 'rx', 'gamx', 'ry', 'gamy', ...
+    'Jxx', 'Jyy', 'Jzz'};
+pOpt_idx = getParamIdx(pOpt_list,paramList);
 
-pVec = @(p) [p_nonOpt(1:9)', p];
+[Aeq_opt,beq_opt] = getEqConstr(pOpt_list,{'Vs_ds_fl','Vs_ds_bl'});
+
+pVec = getpVec(p_nonOpt, pOpt_list, paramList);
+
 p_ga = ga(@(p)nonlinObjFunc_matchDeriv(pVec(p), xMeas, uMeas, gaitCycle0, k_phaseSwitch, w),...
     length(pOpt_idx) ,A_opt,b_opt,Aeq_opt,beq_opt,...
     min(pOpt_bounds(pOpt_idx,:), [], 2)', max(pOpt_bounds(pOpt_idx,:), [], 2)', [],[],...
@@ -187,11 +198,16 @@ p_ga = ga(@(p)nonlinObjFunc_matchDeriv(pVec(p), xMeas, uMeas, gaitCycle0, k_phas
 nonlinObjFunc_matchDeriv(pVec(p_ga), xMeas, uMeas, gaitCycle0, k_phaseSwitch, w)
 
 %%% Second round of optimization
-pOpt_idx = 4:22;
+pOpt_list = {'l0ss', 'Kss', 'bss', 'l0ds', 'Kds', 'bds', ...
+    'Vs_ss','Vl_ss','Vs_ds_fl','Vs_ds_bl','Vl_ds', ...
+    'alpha', 'rx', 'gamx', 'ry', 'gamy', ...
+    'Jxx', 'Jyy', 'Jzz'};
+pOpt_idx = getParamIdx(pOpt_list,paramList);
 A_opt = []; b_opt = []; Aeq_opt = []; beq_opt = [];
-% Aeq_opt = [Aeq_opt; [zeros(1, 2) 1 -1 zeros(1, 9)]]; beq_opt = [beq_opt; 0]; % Vs_ds_fl==Vs_ds_fl
+% [Aeq_opt,beq_opt] = getEqConstr(pOpt_list,{'Vs_ds_fl','Vs_ds_bl'});
 
-pVec = @(p) [p_nonOpt(1:3)', p];
+pVec = getpVec(p_nonOpt, pOpt_list, paramList);
+
 p_fmc = fmincon(@(p)nonlinObjFunc_splitIntoPhases(pVec(p), xMeas, uMeas, gaitCycle0, k_phaseSwitch, w, dt),...
     p_ga, A_opt, b_opt, Aeq_opt, beq_opt, min(pOpt_bounds(pOpt_idx,:), [], 2)', max(pOpt_bounds(pOpt_idx,:), [], 2)', [], ...
     optimoptions('fmincon','UseParallel',true));
