@@ -51,10 +51,15 @@ end
 
 %% Calculate the ground reaction force magnitude
 switch phase
-    case {"lSS", "LSS", "rSS", "RSS"}
-        bF_len = norm(bF);
-        dbF_len = dot(nRb.'*-dnC, bF)/bF_len;
-        GRFmagSS = (Kss*(l0ss - bF_len) + bss*dbF_len)/dot(bGRFdirSS, -bF./bF_len);
+    case {"lSS", "LSS"}
+        bF_len = [norm(bF), nan];
+        dbF_len = [dot(nRb.'*-dnC, bF)/bF_len(1), nan];
+        GRFmagSS = (Kss*(l0ss - bF_len(1)) + bss*dbF_len(1))/dot(bGRFdirSS, -bF./bF_len(1));
+        GRFmagSS = max(GRFmagSS, 0);
+    case {"rSS", "RSS"}
+        bF_len = [nan, norm(bF)];
+        dbF_len = [nan, dot(nRb.'*-dnC, bF)/bF_len(2)];
+        GRFmagSS = (Kss*(l0ss - bF_len(2)) + bss*dbF_len(2))/dot(bGRFdirSS, -bF./bF_len(2));
         GRFmagSS = max(GRFmagSS, 0);
     case {"lDSr", "rDSl"}
         bFL_len = norm(bFL);
@@ -74,10 +79,14 @@ end
 
 %% Calculate centre of mass acceleration
 switch phase
-    case {"lSS", "LSS", "rSS", "RSS"}
+    case {"lSS", "LSS"}
         bGRFSS = GRFmagSS * bGRFdirSS;
         forceSum = bGRFSS;
-        bGRF = bGRFSS;
+        bGRF = [bGRFSS, nan(3,1)];
+    case {"rSS", "RSS"}
+        bGRFSS = GRFmagSS * bGRFdirSS;
+        forceSum = bGRFSS;
+        bGRF = [nan(3,1), bGRFSS];
     case {"lDSr", "rDSl"}
         bGRFL = GRFmagL * bGRFdirL;
         bGRFR = GRFmagR * bGRFdirR;
