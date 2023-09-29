@@ -22,7 +22,7 @@ k = (1:(120*10))+120*10; % Training data
 t = data(Trial).Time.TIME(k); % Time series
 dt = 1/120; % Timestep
 
-w = [1 1 10, 5 5 5, 3 3 3 3, 1 1 1 1]; % State error weights for optimisation
+w = [1 1 20, 5 5 5, 3 3 3 3, 1 1 1 1]; % State error weights for optimisation
 w = w./norm(w); % Normalise weights
 
 %% Retrieve comparison data
@@ -79,6 +79,12 @@ end
 
 %% Optimisation based parameter retrieval
 uMeas = AbsoluteStep2RelativeStep(xMeas, nStepPosAbsolute, k_phaseSwitch, gaitCycle0); % Translate world coordinates to body relative coords
+
+paramList = {'m', 'Wi', 'h', ...
+    'l0ss', 'Kss', 'bss', 'l0ds', 'Kds', 'bds', ...
+    'Vs_ss','Vl_ss','Vs_ds_fl','Vs_ds_bl','Vl_ds', ...
+    'alpha', 'rx', 'gamx', 'ry', 'gamy', ...
+    'Jxx', 'Jyy', 'Jzz'};
 
 %%% Default model parameters, these will be used when the parameter is not
 %%% being optimised
@@ -142,27 +148,21 @@ pOpt_bounds = [ ... Define the bounds of all parameters
     0 m/12*(Wi^2 + data(Trial).Participant.Height^2);... Iyy
     0 m/12*(Wi^2 + Wi^2) + m*(0.5*data(Trial).Participant.Height)^2]; % Izz
 
-A_opt = []; b_opt = []; % Aeq_opt = []; beq_opt = [];
-
-paramList = {'m', 'Wi', 'h', ...
-    'l0ss', 'Kss', 'bss', 'l0ds', 'Kds', 'bds', ...
-    'Vs_ss','Vl_ss','Vs_ds_fl','Vs_ds_bl','Vl_ds', ...
-    'alpha', 'rx', 'gamx', 'ry', 'gamy', ...
-    'Jxx', 'Jyy', 'Jzz'};
+A_opt = []; b_opt = []; Aeq_opt = []; beq_opt = [];
 
 %%% First round of optimization
 pOpt_list = {'Vs_ss','Vl_ss','Vs_ds_fl','Vs_ds_bl','Vl_ds', ...
     'alpha', 'rx', 'gamx', 'ry', 'gamy', ...
     'Jxx', 'Jyy', 'Jzz'};
 pOpt_idx = getParamIdx(pOpt_list,paramList); % The parameter indices to be optimised
-[Aeq_opt,beq_opt] = getEqConstr(pOpt_list,{'Vs_ds_fl','Vs_ds_bl'}); % Vs_ds_fl==Vs_ds_fl
+% [Aeq_opt,beq_opt] = getEqConstr(pOpt_list,{'Vs_ds_fl','Vs_ds_bl'}); % Vs_ds_fl==Vs_ds_fl
 
 pVec = getpVec(p_nonOpt, pOpt_list, paramList); % Mix (non-)optimised parameters
-% p_ga = ga(@(p)nonlinObjFunc_matchDeriv(pVec(p), xMeas, uMeas, gaitCycle0, k_phaseSwitch, w),...
-%     length(pOpt_idx) ,A_opt,b_opt,Aeq_opt,beq_opt,...
-%     min(pOpt_bounds(pOpt_idx,:), [], 2)', max(pOpt_bounds(pOpt_idx,:), [], 2)', [],[],...
-%     optimoptions('ga','UseParallel', true, 'UseVectorized', false,'MaxTime', 5*60));
-load dontOptimDebugVals % comment out optimisation functions
+p_ga = ga(@(p)nonlinObjFunc_matchDeriv(pVec(p), xMeas, uMeas, gaitCycle0, k_phaseSwitch, w),...
+    length(pOpt_idx) ,A_opt,b_opt,Aeq_opt,beq_opt,...
+    min(pOpt_bounds(pOpt_idx,:), [], 2)', max(pOpt_bounds(pOpt_idx,:), [], 2)', [],[],...
+    optimoptions('ga','UseParallel', true, 'UseVectorized', false,'MaxTime', 5*60));
+% load dontOptimDebugVals % comment out optimisation functions
 
 %%% Manual tuning 
 pOpt_list = {'l0ss', 'Kss', 'bss', 'l0ds', 'Kds', 'bds', ...
@@ -203,9 +203,9 @@ end
 A_opt = []; b_opt = []; Aeq_opt = []; beq_opt = []; % Reset
 % [Aeq_opt,beq_opt] = getEqConstr(pOpt_list,{'Vs_ds_fl','Vs_ds_bl'});
 
-% p_fmc = fmincon(@(p)nonlinObjFunc_splitIntoPhases(pVec(p), xMeas, uMeas, gaitCycle0, k_phaseSwitch, w, dt),...
-%     p0, A_opt, b_opt, Aeq_opt, beq_opt, min(pOpt_bounds(pOpt_idx,:), [], 2)', max(pOpt_bounds(pOpt_idx,:), [], 2)', [], ...
-%     optimoptions('fmincon','UseParallel',true));
+p_fmc = fmincon(@(p)nonlinObjFunc_splitIntoPhases(pVec(p), xMeas, uMeas, gaitCycle0, k_phaseSwitch, w, dt),...
+    p0, A_opt, b_opt, Aeq_opt, beq_opt, min(pOpt_bounds(pOpt_idx,:), [], 2)', max(pOpt_bounds(pOpt_idx,:), [], 2)', [], ...
+    optimoptions('fmincon','UseParallel',true));
 
 pOpt = pVec(p_fmc);
 [wxSqError, xModel, bGRF, bL, dbL] = nonlinObjFunc_splitIntoPhases(pVec(p_fmc), xMeas, uMeas, gaitCycle0, k_phaseSwitch, w, dt);
@@ -332,74 +332,6 @@ elseif initGRFmagL>bound && initGRFmagR < bound
 end
 end
 
-function [Wi, h, legLen] = getBodyDimensions(LGTR, RGTR, COM)
-nWi = vecnorm(RGTR-LGTR, 2, 2);
-Wi = mean(nWi);
-
-nhVec = COM - (LGTR + 0.5*(RGTR-LGTR));
-h = mean(vecnorm(nhVec, 2, 2));
-
-legLen = max(COM(3,:)) - h;
-end
-
-function [l0_ss, K_ss, b_ss, l0_ds, K_ds, b_ds, Ll, dLl, LgrfMagPar, idx_LSS, Rl, dRl, RgrfMagPar, idx_RSS, idx_DS] ...
-    = getSpringConsts(COM, LLML, RLML, LgrfVec, RgrfVec, bound, plotIO)
-LLML(3, :) = 0;
-RLML(3, :) = 0;
-% Leg length and derivative
-Ll = vecnorm(LLML-COM, 2, 1);
-Rl = vecnorm(RLML-COM, 2, 1);
-dLl = (Ll(3:end)- Ll(1:end-2)).*60;
-dRl = (Rl(3:end)- Rl(1:end-2)).*60;
-Ll = Ll(2:end-1);
-Rl = Rl(2:end-1);
-
-LgrfMagPar = dot(LgrfVec(:, 2:end-1), (COM(:, 2:end-1) - LLML(:, 2:end-1)))./Ll; % Project GRF onto leg
-RgrfMagPar = dot(RgrfVec(:, 2:end-1), (COM(:, 2:end-1) - RLML(:, 2:end-1)))./Rl;
-
-%%% Single stance
-idx_LSS = (LgrfMagPar > bound & RgrfMagPar < bound);
-Ll_SS = Ll(idx_LSS);
-dLl_SS = dLl(idx_LSS);
-LgrfMag_SS = LgrfMagPar(idx_LSS);
-
-idx_RSS = (RgrfMagPar > bound & LgrfMagPar < bound);
-Rl_SS = Rl(idx_RSS);
-dRl_SS = dRl(idx_RSS);
-RgrfMag_SS = RgrfMagPar(idx_RSS);
-
-l_SS = [Ll_SS'; Rl_SS'];
-dl_SS = [dLl_SS'; dRl_SS'];
-grfMag_SS = [LgrfMag_SS'; RgrfMag_SS'];
-
-[H_SS, f_SS] = getSpringObjFun(l_SS, dl_SS, grfMag_SS);
-spring_SS = quadprog(H_SS, f_SS, -eye(2,3), [0;0]);%, [0 0 1], [0]);
-l0_ss = spring_SS(1)/spring_SS(2);
-K_ss = spring_SS(2);
-b_ss = spring_SS(3);
-
-%%% Double stance
-idx_DS = (LgrfMagPar > bound & RgrfMagPar > bound);
-Ll_DS = Ll(idx_DS);
-dLl_DS = dLl(idx_DS);
-LgrfMag_DS = LgrfMagPar(idx_DS);
-
-Rl_DS = Rl(idx_DS);
-dRl_DS = dRl(idx_DS);
-RgrfMag_DS = RgrfMagPar(idx_DS);
-
-l_DS = [Ll_DS'; Rl_DS'];
-dl_DS = [dLl_DS'; dRl_DS'];
-grfMag_DS = [LgrfMag_DS'; RgrfMag_DS'];
-
-[H_DS, f_DS] = getSpringObjFun(l_DS, dl_DS, grfMag_DS);
-spring_DS = quadprog(H_DS, f_DS, -eye(2,3), [0;0]);%, [0 0 1], [0]);
-l0_ds = spring_DS(1)/spring_DS(2);
-K_ds = spring_DS(2);
-b_ds = spring_DS(3);
-
-end
-
 function [k_strike, k_lift, k_phaseSwitch, nStepPosAbsolute, avgBoundMin, avgBoundMax] ...
     = getPhaseChangeTime(LgrfMag, RgrfMag, bound, LgrfPos, RgrfPos, gaitCycle)
 gaitCycle0 = gaitCycle;
@@ -482,6 +414,74 @@ avgBoundMin = [avgBoundMin min(FPnew_set(1:2, :), [], 2)];
 avgBoundMax = [avgBoundMax max(FPnew_set(1:2, :), [], 2)];
 end
 
+function [Wi, h, legLen] = getBodyDimensions(LGTR, RGTR, COM)
+nWi = vecnorm(RGTR-LGTR, 2, 2);
+Wi = mean(nWi);
+
+nhVec = COM - (LGTR + 0.5*(RGTR-LGTR));
+h = mean(vecnorm(nhVec, 2, 2));
+
+legLen = max(COM(3,:)) - h;
+end
+
+function [l0_ss, K_ss, b_ss, l0_ds, K_ds, b_ds, Ll, dLl, LgrfMagPar, idx_LSS, Rl, dRl, RgrfMagPar, idx_RSS, idx_DS] ...
+    = getSpringConsts(COM, LLML, RLML, LgrfVec, RgrfVec, bound, plotIO)
+LLML(3, :) = 0;
+RLML(3, :) = 0;
+% Leg length and derivative
+Ll = vecnorm(LLML-COM, 2, 1);
+Rl = vecnorm(RLML-COM, 2, 1);
+dLl = (Ll(3:end)- Ll(1:end-2)).*60;
+dRl = (Rl(3:end)- Rl(1:end-2)).*60;
+Ll = Ll(2:end-1);
+Rl = Rl(2:end-1);
+
+LgrfMagPar = dot(LgrfVec(:, 2:end-1), (COM(:, 2:end-1) - LLML(:, 2:end-1)))./Ll; % Project GRF onto leg
+RgrfMagPar = dot(RgrfVec(:, 2:end-1), (COM(:, 2:end-1) - RLML(:, 2:end-1)))./Rl;
+
+%%% Single stance
+idx_LSS = (LgrfMagPar > bound & RgrfMagPar < bound);
+Ll_SS = Ll(idx_LSS);
+dLl_SS = dLl(idx_LSS);
+LgrfMag_SS = LgrfMagPar(idx_LSS);
+
+idx_RSS = (RgrfMagPar > bound & LgrfMagPar < bound);
+Rl_SS = Rl(idx_RSS);
+dRl_SS = dRl(idx_RSS);
+RgrfMag_SS = RgrfMagPar(idx_RSS);
+
+l_SS = [Ll_SS'; Rl_SS'];
+dl_SS = [dLl_SS'; dRl_SS'];
+grfMag_SS = [LgrfMag_SS'; RgrfMag_SS'];
+
+[H_SS, f_SS] = getSpringObjFun(l_SS, dl_SS, grfMag_SS);
+spring_SS = quadprog(H_SS, f_SS, -eye(2,3), [0;0]);%, [0 0 1], [0]);
+l0_ss = spring_SS(1)/spring_SS(2);
+K_ss = spring_SS(2);
+b_ss = spring_SS(3);
+
+%%% Double stance
+idx_DS = (LgrfMagPar > bound & RgrfMagPar > bound);
+Ll_DS = Ll(idx_DS);
+dLl_DS = dLl(idx_DS);
+LgrfMag_DS = LgrfMagPar(idx_DS);
+
+Rl_DS = Rl(idx_DS);
+dRl_DS = dRl(idx_DS);
+RgrfMag_DS = RgrfMagPar(idx_DS);
+
+l_DS = [Ll_DS'; Rl_DS'];
+dl_DS = [dLl_DS'; dRl_DS'];
+grfMag_DS = [LgrfMag_DS'; RgrfMag_DS'];
+
+[H_DS, f_DS] = getSpringObjFun(l_DS, dl_DS, grfMag_DS);
+spring_DS = quadprog(H_DS, f_DS, -eye(2,3), [0;0]);%, [0 0 1], [0]);
+l0_ds = spring_DS(1)/spring_DS(2);
+K_ds = spring_DS(2);
+b_ds = spring_DS(3);
+
+end
+
 function [H, f] = getSpringObjFun(l, dl, grfMag)
 % optimisation param: [alpha; K; b] = [K*l0; K; b]
 H = nan(3);
@@ -554,6 +554,138 @@ for nu = uMeasAbs
 end
 end
 
+function [A_opt,b_opt] = getEqConstr(paramList,varargin)
+% getEqConstr(paramList,varargin) returns the equality constraints matrices
+% A_opt and b_opt that enable constraints of the form param1 = param2 for an
+% arbitrary amount of parameter pairs.
+%
+% Inputs:
+% paramList     : list of ordered names of the parameters.
+% varargin      : N parameter pairs are passed  as {'param11','param12'}, 
+%                  ...,{'paramN1','paramN2'}.
+%
+% Outputs:
+% A_opt, b_opt  : N-by-nParams and N-by-1 equality constraint matrices such
+%                 that A_opt*x = b_opt, where x is considered to be the
+%                 nParams-by-1 decision variable vector consisting of the 
+%                 parameters in paramList.
+
+nEq = size(varargin,2);
+nParams = length(paramList);
+
+A_opt = zeros(nEq,nParams);
+b_opt = zeros(nEq,1);
+
+for idxEq = 1:nEq
+    r1 = double(ismember(paramList,varargin{idxEq}{1}));
+    r2 = double(ismember(paramList,varargin{idxEq}{2}));
+    A_opt(idxEq,:) = r1 - r2;
+end
+end
+
+function paramIdx = getParamIdx(paramNameStr,paramList)
+% getParamIdx(paramNameStr,paramList) returns a column vector of indexes at
+% which the elements of paramNameStr are found in paramList.
+
+paramIdx = find(ismember(paramList,paramNameStr))';
+
+if length(paramIdx) ~= length(paramNameStr)
+    missingParams = [];
+    for k=1:length(paramNameStr)
+        if ~ismember(paramNameStr{k},paramList)
+            missingParams = [missingParams paramNameStr{k} ', '];
+            % fprintf('\nParameter ''%s'' is not in the parameter list.',paramNameStr{k});
+        end
+    end
+
+    answer = questdlg([missingParams(1:end-2) ' not in the parameter list.'], ...
+        'Missing parameters', ...
+        'Ignore missing parameters', ...
+        'Set breakpoint',...
+        'Stop execution','Ignore missing parameters');
+
+    switch answer
+        case 'Ignore missing parameters'
+            warning('Returned only the indexes of found parameters.')
+        case 'Set breakpoint'
+            dbstop in getParamIdx;
+        case 'Stop execution'
+            error(['Parameters ' missingParams(1:end-2) ' not found.'])
+    end
+end
+
+end
+
+function pVec = getpVec(p_nonOpt, pOpt_list, paramList)
+% getpVec(p_nonOpt, pOpt_list, paramList) constructs an anonymous function
+% that creates a parameter vector for optimization. The function preserves 
+% the value of non-optimized parameters and replaces the elements
+% corresponding to to-be-optimized parameters with 'wildcards'.
+%
+% Inputs:
+% p_nonOpt  : nParams-by-1 vector containing the values of the non-optimized 
+%             parameters, where nParams is the total number of parameters. 
+%             The order must correspond to the one of the paramList.
+% pOpt_list : list of parameters to be optimized.
+% paramList : ordered list of all parameter names.
+%
+% Outputs:
+% pVec : function handle, expects input in column vector form (nOpt-by-1).
+
+nPar = length(paramList); % total number of parameters
+nOpt = length(pOpt_list); % number of optimized parameters
+pOpt_idx = getParamIdx(pOpt_list,paramList); % get indexes of optimized params
+
+% Get indexes of non-optimized parameters in the parameter list
+p_nonOpt_select = double(~ismember(paramList,pOpt_list))'; 
+
+% Vector whose entries are 0 if the corresponding parameter is optimized, or
+% the non-optimized value otherwise
+p_nonOpt_vec = (p_nonOpt_select'*diag(p_nonOpt))';
+
+% Column k corresponds to the k-th optimized parameter in pOpt_list and
+% consists of the vector indicating the logical position of the optimized
+% parameter in paramList.
+p_Opt_select_mat = zeros(nPar,nOpt); % nParams-by-nOpt
+for k=1:nOpt
+    p_Opt_select_mat(pOpt_idx(k),k) = 1;
+end
+
+% Second term: ector whose entries are 0 if the corresponding parameter is 
+% non-optimized, or to-be-optimized parameter otherwise
+pVec = @(p) (p_nonOpt_vec +  (p_Opt_select_mat*p'));
+
+end
+
+function [wdxError] = nonlinObjFunc_matchDeriv(p, xMeas, uMeas, gaitCycle, k_phaseSwitch, w)
+
+dxMeas = (xMeas(:,3:end) - xMeas(:,1:end-2))*.60;
+k = 0;
+uMeas{1} = uMeas{1}(:,:,2:end);
+uMeas{end} = uMeas{end}(:,:,1:end-1);
+k_phaseSwitchMem = [k_phaseSwitch-1 length(xMeas)-2];
+
+dxModel = nan(14, length(dxMeas)-2);
+for phaseNum = 1:length(k_phaseSwitch)+1
+    idx = 1;
+
+    % Run over time for duration of phase
+    k_dur = k+1:k_phaseSwitchMem(1);
+    for k = k_dur
+        dxModel(:,k) = EoM_model(xMeas(:,k), uMeas{phaseNum}(:,:,idx), gaitCycle(1), p);
+        idx = idx+1;
+    end
+    gaitCycle = circshift(gaitCycle, -1);
+    k_phaseSwitchMem = k_phaseSwitchMem(2:end);
+end
+
+dxModel(isnan(dxModel)) = 1e7;
+dxError = dxModel - dxMeas;
+wdxError = w*dxError;
+wdxError = sqrt(wdxError*wdxError');
+
+end
+
 function [wxSqError, xModel, bGRF, bL, dbL] = nonlinObjFunc_splitIntoPhases(p, xMeas, uMeas, gaitCycle, k_phaseSwitch, w, dt)
 k = 1;
 k_phaseSwitchMem = [k_phaseSwitch length(xMeas)];
@@ -588,35 +720,6 @@ xModel(isnan(xModel)) = 1e7;
 xError = xModel - xMeas;
 wxError = w*xError;
 wxSqError = sqrt(wxError*wxError');
-
-end
-
-function [wdxError] = nonlinObjFunc_matchDeriv(p, xMeas, uMeas, gaitCycle, k_phaseSwitch, w)
-
-dxMeas = (xMeas(:,3:end) - xMeas(:,1:end-2))*.60;
-k = 0;
-uMeas{1} = uMeas{1}(:,:,2:end);
-uMeas{end} = uMeas{end}(:,:,1:end-1);
-k_phaseSwitchMem = [k_phaseSwitch-1 length(xMeas)-2];
-
-dxModel = nan(14, length(dxMeas)-2);
-for phaseNum = 1:length(k_phaseSwitch)+1
-    idx = 1;
-
-    % Run over time for duration of phase
-    k_dur = k+1:k_phaseSwitchMem(1);
-    for k = k_dur
-        dxModel(:,k) = EoM_model(xMeas(:,k), uMeas{phaseNum}(:,:,idx), gaitCycle(1), p);
-        idx = idx+1;
-    end
-    gaitCycle = circshift(gaitCycle, -1);
-    k_phaseSwitchMem = k_phaseSwitchMem(2:end);
-end
-
-dxModel(isnan(dxModel)) = 1e7;
-dxError = dxModel - dxMeas;
-wdxError = w*dxError;
-wdxError = sqrt(wdxError*wdxError');
 
 end
 
@@ -686,8 +789,8 @@ t = (1:length(bGRF))*dt;
 
 f = figure(WindowState="maximized");
 ax(2) = subplot(3,2,2);
-plot(t, squeeze(vecnorm(bGRF(:,1,:), 2, 1)), 'b'); hold on
-plot(t, squeeze(vecnorm(bGRF(:,2,:), 2, 1)), 'r')
+plot(t, squeeze(vecnorm(bGRF(:,1,:), 2, 1)), 'b', DisplayName="Left"); hold on
+plot(t, squeeze(vecnorm(bGRF(:,2,:), 2, 1)), 'r', DisplayName="Right")
 title("Model generated signals")
 
 ax(4) = subplot(3,2,4);
