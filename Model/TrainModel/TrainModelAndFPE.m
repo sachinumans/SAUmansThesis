@@ -142,14 +142,22 @@ pOpt_bounds = [ ... Define the bounds of all parameters
     0 m/12*(Wi^2 + data(Trial).Participant.Height^2);... Iyy
     0 m/12*(Wi^2 + Wi^2) + m*(0.5*data(Trial).Participant.Height)^2]; % Izz
 
-A_opt = []; b_opt = []; Aeq_opt = []; beq_opt = [];
+A_opt = []; b_opt = []; % Aeq_opt = []; beq_opt = [];
+
+paramList = {'m', 'Wi', 'h', ...
+    'l0ss', 'Kss', 'bss', 'l0ds', 'Kds', 'bds', ...
+    'Vs_ss','Vl_ss','Vs_ds_fl','Vs_ds_bl','Vl_ds', ...
+    'alpha', 'rx', 'gamx', 'ry', 'gamy', ...
+    'Jxx', 'Jyy', 'Jzz'};
 
 %%% First round of optimization
-pOpt_idx = 10:22; % The parameter indices to be optimised
-Aeq_opt = [Aeq_opt; [zeros(1, 2) 1 -1 zeros(1, 9)]]; beq_opt = [beq_opt; 0]; % Vs_ds_fl==Vs_ds_fl %% Co-alter with pOpt_idx
+pOpt_list = {'Vs_ss','Vl_ss','Vs_ds_fl','Vs_ds_bl','Vl_ds', ...
+    'alpha', 'rx', 'gamx', 'ry', 'gamy', ...
+    'Jxx', 'Jyy', 'Jzz'};
+pOpt_idx = getParamIdx(pOpt_list,paramList); % The parameter indices to be optimised
+[Aeq_opt,beq_opt] = getEqConstr(pOpt_list,{'Vs_ds_fl','Vs_ds_bl'}); % Vs_ds_fl==Vs_ds_fl
 
-pVec = @(p) [p_nonOpt(1:9)', p]; % Mix (non-)optimised parameters; i.e.  @(p) [p_nonOpt(1:3)', p(1:4), p_nonOpt(4:10)', p(5:end)] 
-            % %% Co-alter with pOpt_idx
+pVec = getpVec(p_nonOpt, pOpt_list, paramList); % Mix (non-)optimised parameters
 % p_ga = ga(@(p)nonlinObjFunc_matchDeriv(pVec(p), xMeas, uMeas, gaitCycle0, k_phaseSwitch, w),...
 %     length(pOpt_idx) ,A_opt,b_opt,Aeq_opt,beq_opt,...
 %     min(pOpt_bounds(pOpt_idx,:), [], 2)', max(pOpt_bounds(pOpt_idx,:), [], 2)', [],[],...
@@ -157,9 +165,13 @@ pVec = @(p) [p_nonOpt(1:9)', p]; % Mix (non-)optimised parameters; i.e.  @(p) [p
 load dontOptimDebugVals % comment out optimisation functions
 
 %%% Manual tuning 
-pOpt_idx = 4:22; % The parameter indices to be optimised
+pOpt_list = {'l0ss', 'Kss', 'bss', 'l0ds', 'Kds', 'bds', ...
+    'Vs_ss','Vl_ss','Vs_ds_fl','Vs_ds_bl','Vl_ds', ...
+    'alpha', 'rx', 'gamx', 'ry', 'gamy', ...
+    'Jxx', 'Jyy', 'Jzz'};
+pOpt_idx = getParamIdx(pOpt_list,paramList); % The parameter indices to be optimised
 p_ga = [l0_ss, K_ss, b_ss, l0_ds, K_ds, b_ds, p_ga]; % Append found parameters
-pVec = @(p) [p_nonOpt(1:3)', p];  % Mix (non-)optimised parameters %% Co-alter with pOpt_idx
+pVec = getpVec(p_nonOpt, pOpt_list, paramList);  % Mix (non-)optimised parameters %% Co-alter with pOpt_idx
 
 p0 = p_ga; % Initialise p0
 ManualTuning = input("Would you like to tune the initialisation for fmincon? y/n [n]: ", "s") == "y";
@@ -189,7 +201,7 @@ end
 
 %%% Second round of optimization
 A_opt = []; b_opt = []; Aeq_opt = []; beq_opt = []; % Reset
-% Aeq_opt = [Aeq_opt; [zeros(1, 2) 1 -1 zeros(1, 9)]]; beq_opt = [beq_opt; 0]; % Vs_ds_fl==Vs_ds_fl
+% [Aeq_opt,beq_opt] = getEqConstr(pOpt_list,{'Vs_ds_fl','Vs_ds_bl'});
 
 % p_fmc = fmincon(@(p)nonlinObjFunc_splitIntoPhases(pVec(p), xMeas, uMeas, gaitCycle0, k_phaseSwitch, w, dt),...
 %     p0, A_opt, b_opt, Aeq_opt, beq_opt, min(pOpt_bounds(pOpt_idx,:), [], 2)', max(pOpt_bounds(pOpt_idx,:), [], 2)', [], ...
