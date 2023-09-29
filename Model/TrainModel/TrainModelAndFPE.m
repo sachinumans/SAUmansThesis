@@ -1,6 +1,13 @@
 %% Load data
+% change current folder to this files folder
+mfile_name          = mfilename('fullpath');
+[pathstr,name,ext]  = fileparts(mfile_name);
+cd(pathstr);
+
 clc; close all;
 clearvars -except data
+
+% load measurement data
 if exist("data","var") ~= 1
     clear all;
     load([pwd '\..\..\human-walking-biomechanics\Level 3 - MATLAB files\Level 3 - MATLAB files\All Strides Data files\p6_AllStridesData.mat'])
@@ -8,23 +15,22 @@ end
 
 Trial = 8; % Data trial
 treadVel = [0; -1.1; 0]; % Treadmill velocity
-BMthr = 0.3;
-plotIO = true;
+BMthr = 0.3; % Fraction of bodyweight that forms the threshold whether or not a foot is carrying weight
+plotIO = true; % Plot data?
 
 k = (1:(120*10))+120*10; % Training data
-t = data(Trial).Time.TIME(k);
-dt = 1/120;
+t = data(Trial).Time.TIME(k); % Time series
+dt = 1/120; % Timestep
 
-% w = [3 3 10, 1 1 1, 3 3 3 3, 1 1 1 1];
-w = [5 5 5, 2 2 2, 3 3 3 3, 1 1 1 1]; % State error weights
+w = [1 1 10, 5 5 5, 3 3 3 3, 1 1 1 1]; % State error weights for optimisation
 w = w./norm(w); % Normalise weights
 
 %% Retrieve comparison data
-m = data(Trial).Participant.Mass;
-bound = m*9.81*BMthr;
+m = data(Trial).Participant.Mass; % Body mass
+bound = m*9.81*BMthr; % Ground Reaction Force (GRF) threshold for foot detection
 
 [LASI, RASI, COM, LAC, RAC, CAC, LGTR, RGTR, LLML, RLML, RgrfVec, RgrfPos, LgrfVec, LgrfPos, LgrfMag, RgrfMag]...
-    = ExtractData(data, Trial, k, bound);
+    = ExtractData(data, Trial, k, bound); % Unpack optical marker and forceplate data
 
 % Correct for treadmill walking
 TreadmilCorrection = (0:length(k)-1).*treadVel*dt;
@@ -43,71 +49,39 @@ LgrfPos = LgrfPos' + TreadmilCorrection;
 RgrfVec = RgrfVec';
 LgrfVec = LgrfVec';
 
+% Translate optical markers to state trajectories
 xMeas = meas2state(LASI, RASI, COM, CAC);
+% State:      x(1:3)  : CoM in frame N
+%             x(4:6)  : CoM velocity in frame N
+%             x(7:10) : Rotation quaternion from B to N
+%             x(11:14): Rotation quaternion derivative
 
 % Determine initial state
 initGRFmagL = norm(LgrfVec(:, 1));
 initGRFmagR = norm(RgrfVec(:, 1));
 
 gaitCycle0 = getGaitPhase(initGRFmagL, initGRFmagR, bound);
+disp(strjoin(["The training data starts in" gaitCycle0(1)]))
 
 [k_strike, k_lift, k_phaseSwitch, nStepPosAbsolute, avgBoundMin, avgBoundMax] ...
-    = getPhaseChangeTime(LgrfMag, RgrfMag, bound, LgrfPos, RgrfPos, gaitCycle0);
+    = getPhaseChangeTime(LgrfMag, RgrfMag, bound, LgrfPos, RgrfPos, gaitCycle0); % Retrieve indices where the phase changes 
+%     and the world coordinates of the foot placements
 
 if plotIO
-    figure(WindowState="maximized");
-    spaceax = subplot(3,4,1:3);
-    plot(LgrfPos(2,:), LgrfPos(1,:), 'b.', MarkerSize=4, DisplayName="Left foot FP position"); hold on
-    plot(RgrfPos(2,:), RgrfPos(1,:), 'r.', MarkerSize=4, DisplayName="Right foot FP position");
-    plot(COM(2,:), COM(1,:), Color='#FFE32E', DisplayName="CoM OM position");
-    plot(nStepPosAbsolute(2,:), nStepPosAbsolute(1,:), 'ko', DisplayName="Foot placement average");
-    plot(avgBoundMin(2,:), avgBoundMin(1,:), 'k+', DisplayName="Foot placement average; corner of window")
-    legend(AutoUpdate="off", Location="northwest")
-    plot(avgBoundMax(2,:), avgBoundMax(1,:), 'k+')
-
-    title("Spatial-spatial")
-    ylabel("$\mathcal{N}_x$", Interpreter="latex")
-    xlabel("$\mathcal{N}_y$", Interpreter="latex")
-    axis('tight')
-    %     pbaspect([8 1 1])
-
-    spaceax2 = subplot(3,4,[4 8 12]);
-    plot(LgrfPos(1,:), LgrfPos(2,:), 'b.', MarkerSize=2, DisplayName="Left foot FP position"); hold on
-    plot(RgrfPos(1,:), RgrfPos(2,:), 'r.', MarkerSize=2, DisplayName="Right foot FP position");
-    plot(COM(1,:), COM(2,:), Color='#FFE32E', DisplayName="CoM OM position");
-    plot(nStepPosAbsolute(1,:), nStepPosAbsolute(2,:), 'ko', DisplayName="Foot placement average");
-    plot(avgBoundMin(1,:), avgBoundMin(2,:), 'k+', DisplayName="Foot placement average; corner of window")
-    plot(avgBoundMax(1,:), avgBoundMax(2,:), 'k+')
-
-    title("Spatial-spatial, equal aspect ratio")
-    xlabel("$\mathcal{N}_x$", Interpreter="latex")
-    ylabel("$\mathcal{N}_y$", Interpreter="latex")
-    %     legend(AutoUpdate="off", Location="northwest")
-    axis('equal')
-
-    forceax = subplot(3,4,[5:7 9:11]);
-    plot(LgrfPos(2,:), LgrfMag, 'b', DisplayName="GRF magnitude, Left"); hold on
-    plot(RgrfPos(2,:), RgrfMag, 'r', DisplayName="GRF magnitude, Right")
-    legend(AutoUpdate="off")
-    xline(nStepPosAbsolute(2,:))
-    ylabel("GRF magnitude / N")
-    xlabel("$\mathcal{N}_y$", Interpreter="latex")
-    title("Spatial-force")
-
-    linkaxes([spaceax forceax], 'x');
-    sgtitle("Measured data of the feet positions and the force there exerted (Training data)")
+    plotMeasStepData(COM, LgrfPos, RgrfPos, nStepPosAbsolute, avgBoundMin, avgBoundMax, LgrfMag, RgrfMag);
 end
 
 %% Non-optimisation based parameter retrieval
-[Wi, h, legLen] = getBodyDimensions(LGTR, RGTR, COM, xMeas);
-[l0_ss, K_ss, b_ss, l0_ds, K_ds, b_ds] = getSpringConsts(COM, LLML, RLML, LgrfVec, RgrfVec, bound, plotIO);
+[Wi, h, legLen] = getBodyDimensions(LGTR, RGTR, COM); % Retrieve body width, distance between hip and CoM, and leg length
+[l0_ss, K_ss, b_ss, l0_ds, K_ds, b_ds, LlMeas, dLlMeas, LgrfMagPar, idx_LSS, RlMeas, dRlMeas, RgrfMagPar, idx_RSS, idx_DS]...
+    = getSpringConsts(COM, LLML, RLML, LgrfVec, RgrfVec, bound, plotIO); % Optimise the springconstants given GRF measurements
+
 
 %% Optimisation based parameter retrieval
-% Run GA and after fmincon to find VPP, gyro, and beam params
+uMeas = AbsoluteStep2RelativeStep(xMeas, nStepPosAbsolute, k_phaseSwitch, gaitCycle0); % Translate world coordinates to body relative coords
 
-uMeas = AbsoluteStep2RelativeStep(xMeas, nStepPosAbsolute, k_phaseSwitch, gaitCycle0);
-
-%%% Default model parameters
+%%% Default model parameters, these will be used when the parameter is not
+%%% being optimised
 p_nonOpt = nan(22,1);
 p_nonOpt(1:3) = [m, Wi, h];
 p_nonOpt(4:9) = [l0_ss, K_ss, b_ss, l0_ds, K_ds, b_ds];
@@ -115,11 +89,6 @@ p_nonOpt(10:14) = 0;
 p_nonOpt(15) = 0.5;
 p_nonOpt(16:19) = 0;
 p_nonOpt(20:22) = 0;
-
-%%% Debug
-[wxSqError, xModel, bGRF, bL, dbL] = nonlinObjFunc_splitIntoPhases(p_nonOpt, xMeas, uMeas, gaitCycle0, k_phaseSwitch, w, dt);
-wxSqError
-nonlinObjFunc_matchDeriv(p_nonOpt, xMeas, uMeas, gaitCycle0, k_phaseSwitch, w)
 
 %%% Optimisation parameters index
 %         m               1
@@ -149,7 +118,8 @@ nonlinObjFunc_matchDeriv(p_nonOpt, xMeas, uMeas, gaitCycle0, k_phaseSwitch, w)
 %         Jyy             21
 %         Jzz             22
 
-pOpt_bounds = [ 0.95*m 1.05*m; ...       m
+pOpt_bounds = [ ... Define the bounds of all parameters
+    0.95*m 1.05*m; ...       m
     0.95*Wi 1.05*Wi;...      Wi
     -0.5 0.5;...             h
     0.8*l0_ss 1.2*l0_ss;...  l0ss
@@ -175,39 +145,100 @@ pOpt_bounds = [ 0.95*m 1.05*m; ...       m
 A_opt = []; b_opt = []; Aeq_opt = []; beq_opt = [];
 
 %%% First round of optimization
-pOpt_idx = 10:22;
-Aeq_opt = [Aeq_opt; [zeros(1, 2) 1 -1 zeros(1, 9)]]; beq_opt = [beq_opt; 0]; % Vs_ds_fl==Vs_ds_fl
+pOpt_idx = 10:22; % The parameter indices to be optimised
+Aeq_opt = [Aeq_opt; [zeros(1, 2) 1 -1 zeros(1, 9)]]; beq_opt = [beq_opt; 0]; % Vs_ds_fl==Vs_ds_fl %% Co-alter with pOpt_idx
 
-pVec = @(p) [p_nonOpt(1:9)', p];
-p_ga = ga(@(p)nonlinObjFunc_matchDeriv(pVec(p), xMeas, uMeas, gaitCycle0, k_phaseSwitch, w),...
-    length(pOpt_idx) ,A_opt,b_opt,Aeq_opt,beq_opt,...
-    min(pOpt_bounds(pOpt_idx,:), [], 2)', max(pOpt_bounds(pOpt_idx,:), [], 2)', [],[],...
-    optimoptions('ga','UseParallel', true, 'UseVectorized', false,'MaxTime', 5*60));
+pVec = @(p) [p_nonOpt(1:9)', p]; % Mix (non-)optimised parameters; i.e.  @(p) [p_nonOpt(1:3)', p(1:4), p_nonOpt(4:10)', p(5:end)] 
+            % %% Co-alter with pOpt_idx
+% p_ga = ga(@(p)nonlinObjFunc_matchDeriv(pVec(p), xMeas, uMeas, gaitCycle0, k_phaseSwitch, w),...
+%     length(pOpt_idx) ,A_opt,b_opt,Aeq_opt,beq_opt,...
+%     min(pOpt_bounds(pOpt_idx,:), [], 2)', max(pOpt_bounds(pOpt_idx,:), [], 2)', [],[],...
+%     optimoptions('ga','UseParallel', true, 'UseVectorized', false,'MaxTime', 5*60));
+load dontOptimDebugVals % comment out optimisation functions
 
-nonlinObjFunc_matchDeriv(pVec(p_ga), xMeas, uMeas, gaitCycle0, k_phaseSwitch, w)
+%%% Manual tuning 
+pOpt_idx = 4:22; % The parameter indices to be optimised
+p_ga = [l0_ss, K_ss, b_ss, l0_ds, K_ds, b_ds, p_ga]; % Append found parameters
+pVec = @(p) [p_nonOpt(1:3)', p];  % Mix (non-)optimised parameters %% Co-alter with pOpt_idx
+
+p0 = p_ga; % Initialise p0
+ManualTuning = input("Would you like to tune the initialisation for fmincon? y/n [n]: ", "s") == "y";
+while ManualTuning
+    [~, xModel, bGRF, bL, dbL] = nonlinObjFunc_splitIntoPhases(pVec(p0), xMeas, uMeas, gaitCycle0, k_phaseSwitch, w, dt); % Run with p0
+    f1 = plotModelOverMeas(xMeas, xModel, dt);
+    f2 = plotModelOverMeas_forces(bGRF, bL, dbL, l0_ss, K_ss, b_ss, l0_ds, K_ds, b_ds, ...
+        LlMeas, dLlMeas, LgrfMagPar, idx_LSS, RlMeas, dRlMeas, RgrfMagPar, idx_RSS, idx_DS, LgrfVec, RgrfVec, dt);
+    AnotherP = input("This is the result of the current initialisation. Would you like to try another initialisation? y/n [n]: ", "s") == "y";
+    if AnotherP
+        chIdx = input("What index of p0 would you like to change? ");
+        fprintf("The current value of p0(%u) = %.4e.", chIdx, p0(chIdx))
+        p0(chIdx) = input(" To what value would you like to change this entry? ");
+    else
+        ManualTuning = false; % Break while
+        if input("Would you like to use the tuned initialisation? if no, the original GA value is used. y/n [y]: ", "s") == "n" % if changes screwed it up
+            p0 = p_ga;
+        end
+    end
+    try % try because the user might have already closed the window
+        close(f1);
+    end
+    try
+        close(f2);
+    end
+end
 
 %%% Second round of optimization
-pOpt_idx = 4:22;
-A_opt = []; b_opt = []; Aeq_opt = []; beq_opt = [];
+A_opt = []; b_opt = []; Aeq_opt = []; beq_opt = []; % Reset
 % Aeq_opt = [Aeq_opt; [zeros(1, 2) 1 -1 zeros(1, 9)]]; beq_opt = [beq_opt; 0]; % Vs_ds_fl==Vs_ds_fl
 
-pVec = @(p) [p_nonOpt(1:3)', p];
-p_fmc = fmincon(@(p)nonlinObjFunc_splitIntoPhases(pVec(p), xMeas, uMeas, gaitCycle0, k_phaseSwitch, w, dt),...
-    p_ga, A_opt, b_opt, Aeq_opt, beq_opt, min(pOpt_bounds(pOpt_idx,:), [], 2)', max(pOpt_bounds(pOpt_idx,:), [], 2)', [], ...
-    optimoptions('fmincon','UseParallel',true));
+% p_fmc = fmincon(@(p)nonlinObjFunc_splitIntoPhases(pVec(p), xMeas, uMeas, gaitCycle0, k_phaseSwitch, w, dt),...
+%     p0, A_opt, b_opt, Aeq_opt, beq_opt, min(pOpt_bounds(pOpt_idx,:), [], 2)', max(pOpt_bounds(pOpt_idx,:), [], 2)', [], ...
+%     optimoptions('fmincon','UseParallel',true));
 
+pOpt = pVec(p_fmc);
 [wxSqError, xModel, bGRF, bL, dbL] = nonlinObjFunc_splitIntoPhases(pVec(p_fmc), xMeas, uMeas, gaitCycle0, k_phaseSwitch, w, dt);
 wxSqError
 
 if plotIO
-    plotModelOverMeas(xMeas, xModel);
+    plotModelOverMeas(xMeas, xModel, dt);
+    plotModelOverMeas_forces(bGRF, bL, dbL, l0_ss, K_ss, b_ss, l0_ds, K_ds, b_ds, ...
+        LlMeas, dLlMeas, LgrfMagPar, idx_LSS, RlMeas, dRlMeas, RgrfMagPar, idx_RSS, idx_DS, LgrfVec, RgrfVec, dt);
 end
 
-%% Train model
-% modelParams = getModelParams_combiBodV1(data, Trial, k, w, walkVel, BMthr, dt, plotIO);
-% saveAllOpenFigs("TrainingPerformance_BeamAndFlywheelBody");
+%% Estimate reset maps
+xPreResetLSS = nan(0, 7); xPreResetRSS = nan(0, 7); xPreResetlDSr = nan(0, 7); xPreResetrDSl = nan(0, 7); 
+xPostResetLSS = nan(0, 7); xPostResetRSS = nan(0, 7); xPostResetlDSr = nan(0, 7); xPostResetrDSl = nan(0, 7);
+% phaseChangeResetMap
+
+gaitCycle = gaitCycle0;
+
+for idx = k_phaseSwitch
+    switch gaitCycle(1)
+        case {"lSS", "LSS"}
+             xPreResetLSS = [ xPreResetLSS; xModel([4:6 11:14], idx-1)'];
+            xPostResetLSS = [xPostResetLSS; xModel([4:6 11:14], idx)'];
+        case {"rSS", "RSS"}
+             xPreResetRSS = [ xPreResetRSS; xModel([4:6 11:14], idx-1)'];
+            xPostResetRSS = [xPostResetRSS; xModel([4:6 11:14], idx)'];
+        case "lDSr"
+             xPreResetlDSr = [ xPreResetlDSr; xModel([4:6 11:14], idx-1)'];
+            xPostResetlDSr = [xPostResetlDSr; xModel([4:6 11:14], idx)'];
+        case "rDSl"
+             xPreResetrDSl = [ xPreResetrDSl; xModel([4:6 11:14], idx-1)'];
+            xPostResetrDSl = [xPostResetrDSl; xModel([4:6 11:14], idx)'];
+        otherwise, error("Invalid phase");
+    end
+    gaitCycle = circshift(gaitCycle, -1);
+end
+
+phaseChangeResetMap.LSS2lDSr = lsqminnorm(xPreResetLSS, xPostResetLSS);
+phaseChangeResetMap.lDSr2RSS = lsqminnorm(xPreResetlDSr, xPostResetlDSr);
+phaseChangeResetMap.RSS2rDSl = lsqminnorm(xPreResetRSS, xPostResetRSS);
+phaseChangeResetMap.rDSl2LSS = lsqminnorm(xPreResetrDSl, xPostResetrDSl);
+%% Finish
+saveAllOpenFigs("TrainingPerformance");
 % close all
-% save modelParams_combiBod modelParams Trial k w
+save modelParams pOpt
 
 %% Functions
 function [LASI, RASI, COM, LAC, RAC, CAC, LGTR, RGTR, LLML, RLML, ...
@@ -289,17 +320,18 @@ elseif initGRFmagL>bound && initGRFmagR < bound
 end
 end
 
-function [Wi, h, legLen] = getBodyDimensions(LGTR, RGTR, COM, xMeas)
+function [Wi, h, legLen] = getBodyDimensions(LGTR, RGTR, COM)
 nWi = vecnorm(RGTR-LGTR, 2, 2);
 Wi = mean(nWi);
 
 nhVec = COM - (LGTR + 0.5*(RGTR-LGTR));
 h = mean(vecnorm(nhVec, 2, 2));
 
-legLen = max(xMeas(3,:)) - h;
+legLen = max(COM(3,:)) - h;
 end
 
-function [l0_ss, K_ss, b_ss, l0_ds, K_ds, b_ds] = getSpringConsts(COM, LLML, RLML, LgrfVec, RgrfVec, bound, plotIO)
+function [l0_ss, K_ss, b_ss, l0_ds, K_ds, b_ds, Ll, dLl, LgrfMagPar, idx_LSS, Rl, dRl, RgrfMagPar, idx_RSS, idx_DS] ...
+    = getSpringConsts(COM, LLML, RLML, LgrfVec, RgrfVec, bound, plotIO)
 LLML(3, :) = 0;
 RLML(3, :) = 0;
 % Leg length and derivative
@@ -354,50 +386,6 @@ l0_ds = spring_DS(1)/spring_DS(2);
 K_ds = spring_DS(2);
 b_ds = spring_DS(3);
 
-if plotIO
-    LgrfMag_est = nan(length(LgrfMagPar), 1);
-    for idx = find(idx_LSS)
-        LgrfMag_est(idx) = K_ss*(l0_ss - Ll(idx)) + b_ss*dLl(idx);
-    end
-    RgrfMag_est = nan(length(RgrfMagPar), 1);
-    for idx = find(idx_RSS)
-        RgrfMag_est(idx) = K_ss*(l0_ss - Rl(idx)) + b_ss*dRl(idx);
-    end
-    for idx = find(idx_DS)
-        LgrfMag_est(idx) = K_ds*(l0_ds - Ll(idx)) + b_ds*dLl(idx);
-        RgrfMag_est(idx) = K_ds*(l0_ds - Rl(idx)) + b_ds*dRl(idx);
-    end
-
-    figure(WindowState="maximized");
-    ax1 = subplot(3,1,1);
-    plot(vecnorm(LgrfVec, 2, 1), 'b', DisplayName="Total GRF magnitude, Left"); hold on
-    plot(vecnorm(RgrfVec, 2, 1), 'r', DisplayName="Total GRF magnitude, Right")
-    plot(LgrfMagPar, 'b--', DisplayName="Projected GRF magnitude, Left")
-    plot(RgrfMagPar, 'r--', DisplayName="Projected GRF magnitude, Right")
-    plot(LgrfMag_est, 'k--', DisplayName="Estimated GRF magnitude, Left")
-    plot(RgrfMag_est, 'k:', DisplayName="Estimated GRF magnitude, Right")
-    legend()
-
-    ax2 = subplot(3,1,2);
-    yyaxis left
-    plot(find(LgrfMagPar > bound), Ll(LgrfMagPar > bound), 'b.', DisplayName= "Left leg length")
-    ylabel("Leg length")
-    yyaxis right
-    plot(find(LgrfMagPar > bound), dLl(LgrfMagPar > bound), 'm.', DisplayName= "Left leg length derivative")
-    ylabel("Leg length derivative")
-    legend()
-
-    ax3 = subplot(3,1,3);
-    yyaxis left
-    plot(find(RgrfMagPar > bound), Rl(RgrfMagPar > bound), 'r.', DisplayName="Right leg length")
-    ylabel("Leg length")
-    yyaxis right
-    plot(find(RgrfMagPar > bound), dRl(RgrfMagPar > bound), 'm.', DisplayName="Right leg length derivative")
-    ylabel("Leg length derivative")
-    legend()
-
-    linkaxes([ax1 ax2 ax3], 'x')
-end
 end
 
 function [k_strike, k_lift, k_phaseSwitch, nStepPosAbsolute, avgBoundMin, avgBoundMax] ...
@@ -587,7 +575,7 @@ end
 xModel(isnan(xModel)) = 1e7;
 xError = xModel - xMeas;
 wxError = w*xError;
-wxSqError = wxError*wxError';
+wxSqError = sqrt(wxError*wxError');
 
 end
 
@@ -620,60 +608,192 @@ wdxError = sqrt(wdxError*wdxError');
 
 end
 
-function plotModelOverMeas(xMeas, xModel)
-figure(WindowState="maximized")
+function [f] = plotModelOverMeas(xMeas, xModel, dt)
+f = figure(WindowState="maximized");
 ax1 = subplot(2,2,1);
-plot((1:length(xMeas) )*dt, xMeas(1,:), 'r--'); hold on
-plot((1:length(xMeas) )*dt, xMeas(2,:), 'r:')
-plot((1:length(xMeas) )*dt, xMeas(3,:), 'r')
-plot((1:length(xModel))*dt, xModel(1,:), 'b--')
-plot((1:length(xModel))*dt, xModel(2,:), 'b:')
-plot((1:length(xModel))*dt, xModel(3,:), 'b')
+plot((1:length(xMeas) )*dt, xMeas(1,:), 'r--' , DisplayName="Meas - $x$" ); hold on
+plot((1:length(xMeas) )*dt, xMeas(2,:), 'r:'  , DisplayName="Meas - $y$" )
+plot((1:length(xMeas) )*dt, xMeas(3,:), 'r'   , DisplayName="Meas - $z$" )
+plot((1:length(xModel))*dt, xModel(1,:), 'b--', DisplayName="Model - $x$")
+plot((1:length(xModel))*dt, xModel(2,:), 'b:' , DisplayName="Model - $y$")
+plot((1:length(xModel))*dt, xModel(3,:), 'b'  , DisplayName="Model - $z$")
+legend(Interpreter="latex")
+title("CoM position")
+% xlabel("Time / s")
+ylabel("Position / m")
 
 ax2 = subplot(2,2,2);
-plot((1:length(xMeas) )*dt, xMeas (4,:), 'r--'); hold on
-plot((1:length(xMeas) )*dt, xMeas (5,:), 'r:')
-plot((1:length(xMeas) )*dt, xMeas (6,:), 'r')
-plot((1:length(xModel))*dt, xModel(4,:), 'b--')
-plot((1:length(xModel))*dt, xModel(5,:), 'b:')
-plot((1:length(xModel))*dt, xModel(6,:), 'b')
+plot((1:length(xMeas) )*dt, xMeas (4,:), 'r--' , DisplayName="Meas - $\dot{x}$" ); hold on
+plot((1:length(xMeas) )*dt, xMeas (5,:), 'r:'  , DisplayName="Meas - $\dot{y}$" )
+plot((1:length(xMeas) )*dt, xMeas (6,:), 'r'   , DisplayName="Meas - $\dot{z}$" )
+plot((1:length(xModel))*dt, xModel(4,:), 'b--' , DisplayName="Model - $\dot{x}$")
+plot((1:length(xModel))*dt, xModel(5,:), 'b:'  , DisplayName="Model - $\dot{y}$")
+plot((1:length(xModel))*dt, xModel(6,:), 'b'   , DisplayName="Model - $\dot{z}$")
+legend(Interpreter="latex")
+title("CoM velocity")
+% xlabel("Time / s")
+ylabel("Velocity / (m/s)")
 
 ax3 = subplot(2,2,3);
-plot((1:length(xMeas) )*dt, xMeas (7 ,:), 'r--'); hold on
-plot((1:length(xMeas) )*dt, xMeas (8 ,:), 'r-.')
-plot((1:length(xMeas) )*dt, xMeas (9 ,:), 'r:')
-plot((1:length(xMeas) )*dt, xMeas (10,:), 'r')
-plot((1:length(xModel))*dt, xModel(7 ,:), 'b--')
-plot((1:length(xModel))*dt, xModel(8 ,:), 'b-.')
-plot((1:length(xModel))*dt, xModel(9 ,:), 'b:')
-plot((1:length(xModel))*dt, xModel(10,:), 'b')
+plot((1:length(xMeas) )*dt, xMeas (7 ,:), 'r--' , DisplayName="Meas - $q_0$" ); hold on
+plot((1:length(xMeas) )*dt, xMeas (8 ,:), 'r-.' , DisplayName="Meas - $q_1$" )
+plot((1:length(xMeas) )*dt, xMeas (9 ,:), 'r:'  , DisplayName="Meas - $q_2$" )
+plot((1:length(xMeas) )*dt, xMeas (10,:), 'r'   , DisplayName="Meas - $q_3$" )
+plot((1:length(xModel))*dt, xModel(7 ,:), 'b--' , DisplayName="Model - $q_0$")
+plot((1:length(xModel))*dt, xModel(8 ,:), 'b-.' , DisplayName="Model - $q_1$")
+plot((1:length(xModel))*dt, xModel(9 ,:), 'b:'  , DisplayName="Model - $q_2$")
+plot((1:length(xModel))*dt, xModel(10,:), 'b'   , DisplayName="Model - $q_3$")
+legend(Interpreter="latex")
+title("Rotation")
+xlabel("Time / s")
+ylabel("Quaternion")
 
 ax4 = subplot(2,2,4);
-plot((1:length(xMeas) )*dt, xMeas (11,:), 'r--'); hold on
-plot((1:length(xMeas) )*dt, xMeas (12,:), 'r-.')
-plot((1:length(xMeas) )*dt, xMeas (13,:), 'r:')
-plot((1:length(xMeas) )*dt, xMeas (14,:), 'r')
-plot((1:length(xModel))*dt, xModel(11,:), 'b--')
-plot((1:length(xModel))*dt, xModel(12,:), 'b-.')
-plot((1:length(xModel))*dt, xModel(13,:), 'b:')
-plot((1:length(xModel))*dt, xModel(14,:), 'b')
+plot((1:length(xMeas) )*dt, xMeas (11,:), 'r--' , DisplayName="Meas - $\dot{q}_0$" ); hold on
+plot((1:length(xMeas) )*dt, xMeas (12,:), 'r-.' , DisplayName="Meas - $\dot{q}_1$" )
+plot((1:length(xMeas) )*dt, xMeas (13,:), 'r:'  , DisplayName="Meas - $\dot{q}_2$" )
+plot((1:length(xMeas) )*dt, xMeas (14,:), 'r'   , DisplayName="Meas - $\dot{q}_3$" )
+plot((1:length(xModel))*dt, xModel(11,:), 'b--' , DisplayName="Model - $\dot{q}_0$")
+plot((1:length(xModel))*dt, xModel(12,:), 'b-.' , DisplayName="Model - $\dot{q}_1$")
+plot((1:length(xModel))*dt, xModel(13,:), 'b:'  , DisplayName="Model - $\dot{q}_2$")
+plot((1:length(xModel))*dt, xModel(14,:), 'b'   , DisplayName="Model - $\dot{q}_3$")
+legend(Interpreter="latex")
+title("Rotation")
+xlabel("Time / s")
+ylabel("$\frac{d}{dt}$ quaternion", Interpreter="latex")
 
 linkaxes([ax1 ax2 ax3 ax4]', 'x')
 end
 
-function plotModelOverMeas_forces(bGRF, bL, dbL)
-figure(WindowState="maximized")
-ax1 = subplot(3,1,1);
-bGRF(isnan(bGRF)) = 0;
-plot(squeeze(vecnorm(bGRF(:,1,:), 2, 1) + vecnorm(bGRF(:,2,:), 2, 1)))
+function [f] = plotModelOverMeas_forces(bGRF, bL, dbL, l0_ss, K_ss, b_ss, l0_ds, K_ds, b_ds, Ll, dLl, ...
+    LgrfMagPar, idx_LSS, Rl, dRl, RgrfMagPar, idx_RSS, idx_DS, LgrfVec, RgrfVec, dt)
+LgrfVec = LgrfVec(:,2:end-1);
+RgrfVec = RgrfVec(:,2:end-1);
 
-ax2 = subplot(3,1,2);
-plot(bL(1,:), 'b'); hold on
-plot(bL(2,:), 'b');
+t = (1:length(bGRF))*dt;
 
-ax3 = subplot(3,1,3);
-plot(dbL(1,:), 'b'); hold on
-plot(dbL(2,:), 'b');
+f = figure(WindowState="maximized");
+ax(2) = subplot(3,2,2);
+plot(t, squeeze(vecnorm(bGRF(:,1,:), 2, 1)), 'b'); hold on
+plot(t, squeeze(vecnorm(bGRF(:,2,:), 2, 1)), 'r')
+title("Model generated signals")
 
-linkaxes([ax1 ax2 ax3]', 'x')
+ax(4) = subplot(3,2,4);
+plot(t, bL(1,:), 'b'); hold on
+plot(t, bL(2,:), 'r');
+
+ax(6) = subplot(3,2,6);
+plot(t, dbL(1,:), 'b'); hold on
+plot(t, dbL(2,:), 'r');
+xlabel("Time / s")
+
+
+%%%%
+
+LgrfMag_est = nan(length(LgrfMagPar), 1);
+for idx = find(idx_LSS)
+    LgrfMag_est(idx) = K_ss*(l0_ss - Ll(idx)) + b_ss*dLl(idx);
+end
+RgrfMag_est = nan(length(RgrfMagPar), 1);
+for idx = find(idx_RSS)
+    RgrfMag_est(idx) = K_ss*(l0_ss - Rl(idx)) + b_ss*dRl(idx);
+end
+for idx = find(idx_DS)
+    LgrfMag_est(idx) = K_ds*(l0_ds - Ll(idx)) + b_ds*dLl(idx);
+    RgrfMag_est(idx) = K_ds*(l0_ds - Rl(idx)) + b_ds*dRl(idx);
+end
+
+ax(1) = subplot(3,2,1);
+plot(t, vecnorm(LgrfVec, 2, 1), 'b', DisplayName="Total GRF magnitude, Left"); hold on
+plot(t, vecnorm(RgrfVec, 2, 1), 'r', DisplayName="Total GRF magnitude, Right")
+plot(t, LgrfMagPar, 'b--', DisplayName="Projected GRF magnitude, Left")
+plot(t, RgrfMagPar, 'r--', DisplayName="Projected GRF magnitude, Right")
+plot(t, LgrfMag_est, 'k--', DisplayName="Trained GRF magnitude, Left")
+plot(t, RgrfMag_est, 'k:', DisplayName="Trained GRF magnitude, Right")
+title("Measured signals")
+ylabel("GRF / N")
+legend()
+
+ax(3) = subplot(3,2,3);
+plotLl = nan(size(Ll)); plotLl(idx_LSS) = Ll(idx_LSS);
+plotRl = nan(size(Rl)); plotRl(idx_RSS) = Rl(idx_RSS);
+plot(t, plotLl, 'b', DisplayName= "Left leg length"); hold on
+plot(t, plotRl, 'r', DisplayName="Right leg length")
+ylabel("Leg length / m")
+% legend()
+
+ax(5) = subplot(3,2,5);
+plotdLl = nan(size(dLl)); plotdLl(idx_LSS) = dLl(idx_LSS);
+plotdRl = nan(size(dRl)); plotdRl(idx_RSS) = dRl(idx_RSS);
+plot(t, plotdLl, 'b', DisplayName= "Left leg length derivative"); hold on
+plot(t, plotdRl, 'r', DisplayName="Right leg length derivative")
+xlabel("Time / s")
+ylabel("Leg length derivative / (m/s)")
+% legend()
+
+linkaxes(ax, 'x');
+linkaxes(ax(1:2), 'y');
+linkaxes(ax(3:4), 'y');
+linkaxes(ax(5:6), 'y');
+
+end
+
+function plotMeasStepData(COM, LgrfPos, RgrfPos, nStepPosAbsolute, avgBoundMin, avgBoundMax, LgrfMag, RgrfMag)
+
+figure(WindowState="maximized");
+spaceax = subplot(3,4,1:3);
+plot(LgrfPos(2,:), LgrfPos(1,:), 'b.', MarkerSize=4, DisplayName="Left foot FP position"); hold on
+plot(RgrfPos(2,:), RgrfPos(1,:), 'r.', MarkerSize=4, DisplayName="Right foot FP position");
+plot(COM(2,:), COM(1,:), Color='#FFE32E', DisplayName="CoM OM position");
+plot(nStepPosAbsolute(2,:), nStepPosAbsolute(1,:), 'ko', DisplayName="Foot placement average");
+plot(avgBoundMin(2,:), avgBoundMin(1,:), 'k+', DisplayName="Foot placement average; corner of window")
+legend(AutoUpdate="off", Location="northwest")
+plot(avgBoundMax(2,:), avgBoundMax(1,:), 'k+')
+
+title("Spatial-spatial")
+ylabel("$\mathcal{N}_x$", Interpreter="latex")
+xlabel("$\mathcal{N}_y$", Interpreter="latex")
+axis('tight')
+%     pbaspect([8 1 1])
+
+spaceax2 = subplot(3,4,[4 8 12]);
+plot(LgrfPos(1,:), LgrfPos(2,:), 'b.', MarkerSize=2, DisplayName="Left foot FP position"); hold on
+plot(RgrfPos(1,:), RgrfPos(2,:), 'r.', MarkerSize=2, DisplayName="Right foot FP position");
+plot(COM(1,:), COM(2,:), Color='#FFE32E', DisplayName="CoM OM position");
+plot(nStepPosAbsolute(1,:), nStepPosAbsolute(2,:), 'ko', DisplayName="Foot placement average");
+plot(avgBoundMin(1,:), avgBoundMin(2,:), 'k+', DisplayName="Foot placement average; corner of window")
+plot(avgBoundMax(1,:), avgBoundMax(2,:), 'k+')
+
+title("Spatial-spatial, equal aspect ratio")
+xlabel("$\mathcal{N}_x$", Interpreter="latex")
+ylabel("$\mathcal{N}_y$", Interpreter="latex")
+%     legend(AutoUpdate="off", Location="northwest")
+axis('equal')
+
+forceax = subplot(3,4,[5:7 9:11]);
+plot(LgrfPos(2,:), LgrfMag, 'b', DisplayName="GRF magnitude, Left"); hold on
+plot(RgrfPos(2,:), RgrfMag, 'r', DisplayName="GRF magnitude, Right")
+legend(AutoUpdate="off")
+xline(nStepPosAbsolute(2,:))
+ylabel("GRF magnitude / N")
+xlabel("$\mathcal{N}_y$", Interpreter="latex")
+title("Spatial-force")
+
+linkaxes([spaceax forceax], 'x');
+sgtitle("Measured data of the feet positions and the force there exerted (Training data)")
+end
+
+function [] = saveAllOpenFigs(varargin)
+% SAVEALLOPENFIGS saves all open figures to a single .fig file; Specify
+% filename or enter in command line
+
+h =  findobj('type','figure');
+
+if nargin == 1
+    n = varargin{1};
+else
+    n = input("Enter filename: \n", "s");
+end
+
+savefig(flip(h),n)
 end
