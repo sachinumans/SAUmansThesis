@@ -220,7 +220,6 @@ end
 %% Estimate reset maps
 xPreResetLSS = nan(0, 7); xPreResetRSS = nan(0, 7); xPreResetlDSr = nan(0, 7); xPreResetrDSl = nan(0, 7); 
 xPostResetLSS = nan(0, 7); xPostResetRSS = nan(0, 7); xPostResetlDSr = nan(0, 7); xPostResetrDSl = nan(0, 7);
-% phaseChangeResetMap
 
 gaitCycle = gaitCycle0;
 
@@ -250,12 +249,17 @@ phaseChangeResetMap.rDSl2LSS = lsqminnorm(xPreResetrDSl, xPostResetrDSl);
 %% Finish
 saveAllOpenFigs("TrainingPerformance");
 % close all
-save modelParams pOpt
+save modelParams pOpt phaseChangeResetMap
 
 %% Functions
 function [LASI, RASI, COM, LAC, RAC, CAC, LGTR, RGTR, LLML, RLML, ...
     RgrfVec, RgrfPos_correct, LgrfVec, LgrfPos_correct, LgrfMag, RgrfMag]...
     = ExtractData(data, Trial, k, bound)
+
+% See van der Zee, T. J., Mundinger, E. M., & Kuo, A. D. (2022). A biomechanics 
+% dataset of healthy human walking at various speeds, step lengths and step 
+% widths. Scientific Data, 9(1), 704. https://doi.org/10.1038/s41597-022-01817-1
+% Figure 1.
 
 % Extract data
 SACR = data(Trial).TargetData.SACR_pos_proc(k, 1:3);
@@ -287,7 +291,7 @@ LgrfPos = LgrfPos(k, :);
 LgrfMag = vecnorm(LgrfVec, 2, 2);
 RgrfMag = vecnorm(RgrfVec, 2, 2);
 
-% Filter wrongly measured feet pos
+% Filter wrongly measured feet pos due to forceplate noise
 LgrfPos_correct = nan(size(LgrfPos));
 RgrfPos_correct = nan(size(RgrfPos));
 LgrfPos_correct(LgrfMag > bound, :) = LgrfPos(LgrfMag > bound, :);
@@ -296,21 +300,21 @@ end
 
 function [x] = meas2state(LASI, RASI, COM, CAC)
 % Body fixed frame
-nBz = CAC-COM;
-nBY = LASI-RASI;
-nBx = cross(nBY, nBz);
-nBy = cross(nBz, nBx);
+nBz = CAC-COM; % Along the spine
+nBY = LASI-RASI; % Pelvis direction
+nBx = cross(nBY, nBz); % Body relative forward
+nBy = cross(nBz, nBx); % Orthogonalise
 
-angularError_Yz = rad2deg(asin(vecnorm(nBx./vecnorm(nBY,2,1)./vecnorm(nBz,2,1), 2, 1)))-90;
+angularError_Yz = rad2deg(asin(vecnorm(nBx./vecnorm(nBY,2,1)./vecnorm(nBz,2,1), 2, 1)))-90; % Angle error from right angle between spine-pelvis
 
-nBz = nBz./vecnorm(nBz, 2, 1);
+nBz = nBz./vecnorm(nBz, 2, 1); % Orthonormalise
 nBy = nBy./vecnorm(nBy, 2, 1);
 nBx = nBx./vecnorm(nBx, 2, 1);
 
 % Quaternions
-nRb = cat(3, nBx, nBy, nBz);
+nRb = cat(3, nBx, nBy, nBz); % Rotation matrix from B to N
 nRb = permute(nRb, [1 3 2]);
-nqb = rotm2quat(nRb).';
+nqb = rotm2quat(nRb).'; % Rotation quaternion
 
 % Differentiate - central difference
 dCOM = (COM(:, 3:end) - COM(:, 1:end-2)).*60;
@@ -322,12 +326,14 @@ end
 
 function gaitCycle = getGaitPhase(initGRFmagL, initGRFmagR, bound)
 gaitCycle = ["rDSl", "lSS", "lDSr", "rSS"];
+% Right to Left Double Stance, Left Single Stance, Left to Right Double
+% Stance, Right Single Stance
 
 if initGRFmagL>bound && initGRFmagR>bound
-    error("Cannot initialise in double stance, ambiguous stance order")
-elseif initGRFmagL < bound && initGRFmagR>bound
+    error("Cannot initialise in double stance, unable to differentiate between left2right and right2left")
+elseif initGRFmagL < bound && initGRFmagR>bound % RSS
     gaitCycle = circshift(gaitCycle, -3);
-elseif initGRFmagL>bound && initGRFmagR < bound
+elseif initGRFmagL>bound && initGRFmagR < bound % LSS
     gaitCycle = circshift(gaitCycle, -1);
 end
 end
@@ -335,12 +341,12 @@ end
 function [k_strike, k_lift, k_phaseSwitch, nStepPosAbsolute, avgBoundMin, avgBoundMax] ...
     = getPhaseChangeTime(LgrfMag, RgrfMag, bound, LgrfPos, RgrfPos, gaitCycle)
 gaitCycle0 = gaitCycle;
-k_strike = [];
-k_lift = [];
-k_phaseSwitch = [];
+k_strike = []; % Heel strike time indices
+k_lift = []; % Toe off time indices
+k_phaseSwitch = []; % Phase change time indices
 ki = 1;
 
-nStepPosAbsolute = [];
+nStepPosAbsolute = []; % World coordinate step positions
 avgBoundMin = [];
 avgBoundMax = [];
 
@@ -367,7 +373,7 @@ while true
 
     ki = ki+ ki_phaseDuration;
     k_phaseSwitch = [k_phaseSwitch ki];
-    gaitCycle = circshift(gaitCycle, -1);
+    gaitCycle = circshift(gaitCycle, -1); % Next phase
 end
 
 %%% Obtain foot placements
@@ -376,11 +382,11 @@ gaitCycle = gaitCycle0;
 % Initial phase
 switch gaitCycle(1)
     case {"lSS", "LSS"}
-        FPnew_set = LgrfPos(1:2, 1:k_lift(1));
+        FPnew_set = LgrfPos(1:2, 1:k_lift(1)); % Foot position window for this step
     case {"rSS", "RSS"}
         FPnew_set = RgrfPos(1:2, 1:k_lift(1));
 end
-FPnew = mean(FPnew_set, 2, "omitnan");
+FPnew = mean(FPnew_set, 2, "omitnan"); % Averaged foot position
 nStepPosAbsolute = [nStepPosAbsolute, [FPnew; 0]];
 avgBoundMin = [avgBoundMin min(FPnew_set(1:2, :), [], 2)];
 avgBoundMax = [avgBoundMax max(FPnew_set(1:2, :), [], 2)];
@@ -390,11 +396,11 @@ gaitCycle = circshift(gaitCycle, -2);
 for idx = 2:length(k_lift)
     switch gaitCycle(1)
         case {"lSS", "LSS"}
-            FPnew_set = LgrfPos(1:2, k_strike(idx-1):k_lift(idx));
+            FPnew_set = LgrfPos(1:2, k_strike(idx-1):k_lift(idx)); % Foot position window for this step
         case {"rSS", "RSS"}
             FPnew_set = RgrfPos(1:2, k_strike(idx-1):k_lift(idx));
     end
-    FPnew = mean(FPnew_set, 2, "omitnan");
+    FPnew = mean(FPnew_set, 2, "omitnan"); % Averaged foot position
     nStepPosAbsolute = [nStepPosAbsolute, [FPnew; 0]];
     avgBoundMin = [avgBoundMin min(FPnew_set(1:2, :), [], 2)];
     avgBoundMax = [avgBoundMax max(FPnew_set(1:2, :), [], 2)];
@@ -426,12 +432,12 @@ end
 
 function [l0_ss, K_ss, b_ss, l0_ds, K_ds, b_ds, Ll, dLl, LgrfMagPar, idx_LSS, Rl, dRl, RgrfMagPar, idx_RSS, idx_DS] ...
     = getSpringConsts(COM, LLML, RLML, LgrfVec, RgrfVec, bound, plotIO)
-LLML(3, :) = 0;
+LLML(3, :) = 0; % Assume vertical projection to the floor
 RLML(3, :) = 0;
 % Leg length and derivative
 Ll = vecnorm(LLML-COM, 2, 1);
 Rl = vecnorm(RLML-COM, 2, 1);
-dLl = (Ll(3:end)- Ll(1:end-2)).*60;
+dLl = (Ll(3:end)- Ll(1:end-2)).*60; % Central difference @ 120Hz
 dRl = (Rl(3:end)- Rl(1:end-2)).*60;
 Ll = Ll(2:end-1);
 Rl = Rl(2:end-1);
@@ -439,6 +445,8 @@ Rl = Rl(2:end-1);
 LgrfMagPar = dot(LgrfVec(:, 2:end-1), (COM(:, 2:end-1) - LLML(:, 2:end-1)))./Ll; % Project GRF onto leg
 RgrfMagPar = dot(RgrfVec(:, 2:end-1), (COM(:, 2:end-1) - RLML(:, 2:end-1)))./Rl;
 
+% Optimise untensioned length, spring constant and dampner constant through
+% a quadratic programming problem
 %%% Single stance
 idx_LSS = (LgrfMagPar > bound & RgrfMagPar < bound);
 Ll_SS = Ll(idx_LSS);
@@ -542,10 +550,10 @@ k_phaseSwitchMem = [k_phaseSwitch length(xMeas)];
 for nu = uMeasAbs
     uAbs = nu{:};
     k_dur = k+1:k_phaseSwitchMem(1);
-    uMeas{end+1} = nan(3, size(uAbs,2),length(k_dur));
+    uMeas{end+1} = nan(3, size(uAbs,2), length(k_dur));
     idx = 1;
     for k = k_dur
-        nRb = quat2R(xMeas(7:10, k));
+        nRb = quat2R(xMeas(7:10, k)); % Rotate absolute to body fixed
         uMeas{end}(:,:,idx) = nRb'*(uAbs - xMeas(1:3, k));
         idx = idx +1;
     end
@@ -703,8 +711,8 @@ for phaseNum = 1:length(k_phaseSwitch)+1
     % Run over time for duration of phase
     k_dur = k+1:k_phaseSwitchMem(1);
     for k = k_dur
-        [dx, bG, bl, dbl] = EoM_model(xModel(:,k-1), uMeas{phaseNum}(:,:,idx), gaitCycle(1), p);
-        xModel(:,k) = xModel(:,k-1) + dt*dx;
+        [dx, bG, bl, dbl] = EoM_model(xModel(:,k-1), uMeas{phaseNum}(:,:,idx), gaitCycle(1), p); 
+        xModel(:,k) = xModel(:,k-1) + dt*dx; % Forward Euler
         xModel(7:10,k) = xModel(7:10,k)./norm(xModel(7:10,k));
         idx = idx+1;
 
