@@ -75,7 +75,13 @@ end
 [Wi, h, legLen] = getBodyDimensions(LGTR, RGTR, COM); % Retrieve body width, distance between hip and CoM, and leg length
 [l0_ss, K_ss, b_ss, l0_ds, K_ds, b_ds, LlMeas, dLlMeas, LgrfMagPar, idx_LSS, RlMeas, dRlMeas, RgrfMagPar, idx_RSS, idx_DS]...
     = getSpringConsts(COM, LLML, RLML, LgrfVec, RgrfVec, bound, plotIO); % Optimise the springconstants given GRF measurements
+[SWcorr, SLcorr, lpFilt, nFilt, realStep, uncontrolledStep] = getFPEparams(xMeas, k_strike, nStepPosAbsolute, Wi, h, legLen, dt);
+    % Get FPE parameters and plotting values
 
+if plotIO
+    controlledStep = diag([1, SWcorr, 1])*uncontrolledStep + [SLcorr;0;0];
+    plotFPE(realStep, controlledStep);
+end
 
 %% Optimisation based parameter retrieval
 uMeas = AbsoluteStep2RelativeStep(xMeas, nStepPosAbsolute, k_phaseSwitch, gaitCycle0); % Translate world coordinates to body relative coords
@@ -421,11 +427,11 @@ avgBoundMax = [avgBoundMax max(FPnew_set(1:2, :), [], 2)];
 end
 
 function [Wi, h, legLen] = getBodyDimensions(LGTR, RGTR, COM)
-nWi = vecnorm(RGTR-LGTR, 2, 2);
+nWi = vecnorm(RGTR-LGTR, 2, 1);
 Wi = mean(nWi);
 
 nhVec = COM - (LGTR + 0.5*(RGTR-LGTR));
-h = mean(vecnorm(nhVec, 2, 2));
+h = mean(vecnorm(nhVec, 2, 1));
 
 legLen = max(COM(3,:)) - h;
 end
@@ -513,6 +519,44 @@ f(1) = -2*sum(grfMag);
 f(2) = 2*l'*grfMag;
 f(3) = -2*dl'*grfMag;
 
+end
+
+function [SWcorr, SLcorr, lpFilt, nFilt, realStep, controlStep] = getFPEparams(xMeas, k_strike, nStepPosAbsolute, Wi, h, legLen, dt)
+controlStep = [];
+realStep = [];
+k_u = 2;
+for idx = k_strike
+    [bF, ~, ~] = StepControllerFPE_v2(xMeas(:,idx), legLen, Wi, h, 0, 1);
+    controlStep = [controlStep bF];
+
+    nRb = quat2R(xMeas(7:10, idx));
+    bF_real = nRb.'*(nStepPosAbsolute(:,k_u) - xMeas(1:3,idx));
+    realStep = [realStep bF_real];
+
+    k_u = k_u+1;
+end
+
+SWcorr = mean(realStep(2,:) ./ controlStep(2,:));
+SLcorr = mean(realStep(1,:) -  controlStep(1,:));
+
+%%% Filter design
+Fpass = 3;  % Passband Frequency
+Fstop = 5;    % Stopband Frequency
+Apass = 1;    % Passband Ripple (dB)
+Astop = 60;   % Stopband Attenuation (dB)
+Fs    = 1/dt;  % Sampling Frequency
+
+hF = fdesign.lowpass('fp,fst,ap,ast', Fpass, Fstop, Apass, Astop, Fs);
+
+Hd = design(hF, 'cheby2', ...
+    'MatchExactly', 'passband');
+
+[A, B, C, D] = Hd.ss;
+sysFilt = -ss(A, B, C, D, dt);
+lpFilt = @(x, u) [sysFilt.A*x + sysFilt.B*u;...
+                    sysFilt.C*x + sysFilt.D*u];
+
+nFilt = size(sysFilt.A, 1);
 end
 
 function uMeas = AbsoluteStep2RelativeStep(xMeas, nStepPosAbsolute, k_phaseSwitch, gaitCycle)
@@ -904,6 +948,32 @@ title("Spatial-force")
 
 linkaxes([spaceax forceax], 'x');
 sgtitle("Measured data of the feet positions and the force there exerted (Training data)")
+end
+
+function plotFPE(realStep, controlStep)
+figure(WindowState="maximized");
+subplot(2,2,1)
+plot(realStep(1, :), 'bx'); hold on
+plot(controlStep(1,:), 'rx')
+% legend("Measured", "Controller")
+title("Step Length Training")
+xlabel("Step")
+ylabel("Meter")
+
+subplot(2,2,2)
+plot(realStep(2, :), 'bx'); hold on
+plot(controlStep(2,:), 'rx')
+legend("Measured", "Controller")
+title("Step Width Training")
+xlabel("Step")
+
+subplot(2,2,[3 4])
+err = vecnorm(controlStep - realStep, 2, 1);
+plot(err, 'o-'); hold on
+yline(mean(err), 'k--', 'Mean')
+title("Absolute Error")
+xlabel("Step")
+ylabel("Meter")
 end
 
 function [] = saveAllOpenFigs(varargin)
