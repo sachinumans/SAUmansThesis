@@ -61,7 +61,21 @@ switch phase
         dbF_len = [nan, dot(nRb.'*-dnC, bF)/bF_len(2)];
         GRFmagSS = (Kss*(l0ss - bF_len(2)) + bss*dbF_len(2))/dot(bGRFdirSS, -bF./bF_len(2));
         GRFmagSS = max(GRFmagSS, 0);
-    case {"lDSr", "rDSl"}
+    case {"lDSr"}
+        bFL_len = norm(bFL);
+        dbFL_len = dot(nRb.'*-dnC, bFL)/bFL_len;
+%         GRFmagL = (Kds*(l0ds - bFL_len) + bds*dbFL_len)/dot(bGRFdirL, -bFL./bFL_len);
+        GRFmagL = (Kds*(l0ds - bFL_len) - bds*dbFL_len)/dot(bGRFdirL, -bFL./bFL_len);
+        GRFmagL = max(GRFmagL, 0);
+    
+        bFR_len = norm(bFR);
+        dbFR_len = dot(nRb.'*-dnC, bFR)/bFR_len;
+        GRFmagR = (Kds*(l0ds - bFR_len) + bds*dbFR_len)/dot(bGRFdirR, -bFR./bFR_len);
+        GRFmagR = max(GRFmagR, 0);
+        
+        bF_len = [bFL_len, bFR_len];
+        dbF_len = [dbFL_len, dbFR_len];
+    case {"rDSl"}
         bFL_len = norm(bFL);
         dbFL_len = dot(nRb.'*-dnC, bFL)/bFL_len;
         GRFmagL = (Kds*(l0ds - bFL_len) + bds*dbFL_len)/dot(bGRFdirL, -bFL./bFL_len);
@@ -69,7 +83,8 @@ switch phase
     
         bFR_len = norm(bFR);
         dbFR_len = dot(nRb.'*-dnC, bFR)/bFR_len;
-        GRFmagR = (Kds*(l0ds - bFR_len) + bds*dbFR_len)/dot(bGRFdirR, -bFR./bFR_len);
+%         GRFmagR = (Kds*(l0ds - bFR_len) + bds*dbFR_len)/dot(bGRFdirR, -bFR./bFR_len);
+        GRFmagR = (Kds*(l0ds - bFR_len) - bds*dbFR_len)/dot(bGRFdirR, -bFR./bFR_len);
         GRFmagR = max(GRFmagR, 0);
         
         bF_len = [bFL_len, bFR_len];

@@ -1,4 +1,4 @@
-function [] = animate_strides_V2(tSim, xSim, gaitCycle, k_switch, u, modelParams)
+function [] = animate_strides(tSim, xSim, gaitCycle, k_switch, u, modelParams)
 %ANIMATE_STRIDES Animate walking and give information
 %     tSim: Simulation time array
 %     xSim: Simulation array with states along the 1st axis and time along the 2nd
@@ -14,16 +14,16 @@ K = 1:frameGap:length(xSim); % Plotted framenumbers
 
 %% Unpack parameters
 Le =    0.6;                            % Torso height
-Wi =    modelParams.physical.Wi;        % Torso width
+Wi =    modelParams(2);        % Torso width
 De =    0.2;                            % Torso depth
-h =     modelParams.physical.h;         % Distance CoM to hip
+h =     modelParams(3);         % Distance CoM to hip
 
 % VPP's
-Vs_ss = modelParams.vpp.Vs_ss;
-Vl_ss = modelParams.vpp.Vl_ss;
-Vs_fl = modelParams.vpp.Vs_fl;
-Vs_bl = modelParams.vpp.Vs_bl;
-Vl_ds = modelParams.vpp.Vl_ds;
+Vs_ss = modelParams(10);
+Vl_ss = modelParams(11);
+Vs_fl = modelParams(12);
+Vs_bl = modelParams(13);
+Vl_ds = modelParams(14);
 
 %% Define body-fixed points
 bod_t = [0;0; Le-h]; % Top
@@ -73,11 +73,20 @@ CO = zeros(4,4,3);
 ku = 1;
 frame = 1;
 k_switch_mem = k_switch;
-pars = mp2pars(modelParams);
+counterU = 1;
 
 for k = K
-    [~, nG] = ImplicitEoM_gyrBod_dyns_returnAll(xSim(:,k), u{ku}, pars, gaitCycle(1)); % GRF
+    switch gaitCycle(1)
+        case {"lSS", "LSS", "rSS", "RSS"}
+            u_k = u{ku}(:, counterU);
+        case {"lDSr", "rDSl"}
+            u_k = u{ku}(:,:, counterU);
+        otherwise, error("Invalid phase");
+    end
+    [dx, nG, bF_len, dbF_len] = EoM_model(xSim(:,k), u_k, gaitCycle(1), modelParams); % GRF
+
     nRb = quat2R(xSim(7:10, k));
+    Nu_k = xSim(1:3,k) + nRb*u_k;
 
     subplot(latax)
     plot(nan, 'rx', DisplayName='CoM'); hold on
@@ -97,6 +106,9 @@ for k = K
         k_switch_mem = k_switch_mem(2:end);
         ku = ku+1;
         gaitCycle = circshift(gaitCycle, -1);
+        counterU = 1;
+    else
+        counterU = counterU + 1;
     end
     
     drawnow % Store frame
@@ -131,16 +143,16 @@ end
     subplot(simax);
     switch gaitCycle(1)
         case {"LSS", "lSS"}
-            plot3([u{ku}(1) Ntorso(1,5)], [u{ku}(2) Ntorso(2,5)], [0 Ntorso(3,5)], 'b-'); hold on;
-            plot3(u{ku}(1), u{ku}(2), 0, 'b^')
+            plot3([Nu_k(1) Ntorso(1,5)], [Nu_k(2) Ntorso(2,5)], [Nu_k(3) Ntorso(3,5)], 'b-'); hold on;
+            plot3(Nu_k(1), Nu_k(2), Nu_k(3), 'b^')
         case {"RSS", "rSS"}
-            plot3([u{ku}(1) Ntorso(1,6)], [u{ku}(2) Ntorso(2,6)], [0 Ntorso(3,6)], 'b-'); hold on;
-            plot3(u{ku}(1), u{ku}(2), 0, 'b^')
+            plot3([Nu_k(1) Ntorso(1,6)], [Nu_k(2) Ntorso(2,6)], [Nu_k(3) Ntorso(3,6)], 'b-'); hold on;
+            plot3(Nu_k(1), Nu_k(2), Nu_k(3), 'b^')
         case {"lDSr", "rDSl"}
-            plot3([u{ku}(1, 1) Ntorso(1,5)], [u{ku}(2, 1) Ntorso(2,5)], [0 Ntorso(3,5)], 'b-'); hold on;
-            plot3([u{ku}(1, 2) Ntorso(1,6)], [u{ku}(2, 2) Ntorso(2,6)], [0 Ntorso(3,6)], 'b-')
-            plot3(u{ku}(1, 1), u{ku}(2, 1), 0, 'b^')
-            plot3(u{ku}(1, 2), u{ku}(2, 2), 0, 'b^')
+            plot3([Nu_k(1, 1) Ntorso(1,5)], [Nu_k(2, 1) Ntorso(2,5)], [Nu_k(3, 1) Ntorso(3,5)], 'b-'); hold on;
+            plot3([Nu_k(1, 2) Ntorso(1,6)], [Nu_k(2, 2) Ntorso(2,6)], [Nu_k(3, 2) Ntorso(3,6)], 'b-')
+            plot3(Nu_k(1, 1), Nu_k(2, 1), Nu_k(3, 1), 'b^')
+            plot3(Nu_k(1, 2), Nu_k(2, 2), Nu_k(3, 2), 'b^')
     end
     surf(4*[-2 -2 2 2] + xSim(1,k), 4*[-2 2 -2 2] + xSim(2,k), zeros(4), CO, "FaceAlpha", 0.3)
     axis([-1+xSim(1,k) 1+xSim(1,k) -1+xSim(2,k) 1+xSim(2,k) -0.01 2]);
@@ -153,7 +165,7 @@ end
     function [] = plotFeetFlat()
     subplot(feetax);
     plot(xSim(1,k), xSim(2,k), 'rx'); hold on
-    plot(u{ku}(1,:), u{ku}(2,:), 'b^')
+    plot(Nu_k(1,:), Nu_k(2,:), 'b^')
     axis([xSim(1,k)-1 xSim(1,k)+1 xSim(2,k)-1 xSim(2,k)+1])
     hold off;
     xlabel("N_x")
@@ -199,12 +211,12 @@ end
     title("Sag. plane & VPP & GRF")
     switch gaitCycle(1)
         case {"LSS", "lSS"}
-            plot(u{ku}(1)+[0 nG(1)], [0 nG(3)], 'b')
+            plot(Nu_k(1)+[0 nG(1)], [0 nG(3)], 'b')
         case {"RSS", "rSS"}
-            plot(u{ku}(1)+[0 nG(1)], [0 nG(3)], 'b--')
+            plot(Nu_k(1)+[0 nG(1)], [0 nG(3)], 'b--')
         case {"lDSr", "rDSl"}
-            plot(u{ku}(1, 1)+[0 nG(1, 1)], [0 nG(3, 1)], 'b')
-            plot(u{ku}(1, 2)+[0 nG(1, 2)], [0 nG(3, 2)], 'b--')
+            plot(Nu_k(1, 1)+[0 nG(1, 1)], [0 nG(3, 1)], 'b')
+            plot(Nu_k(1, 2)+[0 nG(1, 2)], [0 nG(3, 2)], 'b--')
     end
     hold off;
 
@@ -212,12 +224,12 @@ end
     title("Lat. plane & VPP & GRF")
     switch gaitCycle(1)
         case {"LSS", "lSS"}
-            plot(u{ku}(2)+[0 nG(2)], [0 nG(3)], 'b')
+            plot(Nu_k(2)+[0 nG(2)], [0 nG(3)], 'b')
         case {"RSS", "rSS"}
-            plot(u{ku}(2)+[0 nG(2)], [0 nG(3)], 'b--')
+            plot(Nu_k(2)+[0 nG(2)], [0 nG(3)], 'b--')
         case {"lDSr", "rDSl"}
-            plot(u{ku}(2, 1)+[0 nG(2, 1)], [0 nG(3, 1)], 'b')
-            plot(u{ku}(2, 2)+[0 nG(2, 2)], [0 nG(3, 2)], 'b--')
+            plot(Nu_k(2, 1)+[0 nG(2, 1)], [0 nG(3, 1)], 'b')
+            plot(Nu_k(2, 2)+[0 nG(2, 2)], [0 nG(3, 2)], 'b--')
     end
 
     hold off;
@@ -242,19 +254,4 @@ end
     ylabel("Newton")
     end
     
-end
-
-function pars = mp2pars(mp)
-pars.p_bio(1) = mp.physical.Wi; pars.p_bio(2) = mp.physical.l0; pars.p_bio(3) = mp.physical.m; pars.p_bio(4) = mp.physical.h;
-pars.p_spring(1) = mp.spring.K_ss; pars.p_spring(2) = mp.spring.b_ss;
-pars.p_spring(3) = mp.spring.K_ds; pars.p_spring(4) = mp.spring.b_ds;
-pars.p(1) = mp.vpp.Vl_ss; pars.p(2) = mp.vpp.Vs_ss;
-pars.p(3) = mp.vpp.Vl_ds;
-pars.p(4) = mp.vpp.Vs_bl; pars.p(5) = mp.vpp.Vs_fl;
-pars.p(6) = mp.spring.l_preload;
-pars.p(7) = mp.flywheel.gamx;
-pars.p(8) = mp.flywheel.gamy;
-pars.p(9) = mp.flywheel.rx;
-pars.p(10) = mp.flywheel.ry;
-pars.p(11) = mp.flywheel.alpha;
 end
