@@ -359,6 +359,9 @@ if ~debugMode
 %     close all
 end
 
+%%
+% saveAllOpenFigs("TrainingPerformance");
+
 %% Functions
 % For your own sanity, collapse these
 %                   ▕▔╲
@@ -1184,7 +1187,7 @@ xlabel("Timestep")
 ylabel("Meter")
 
 subplot(3,4,6)
-spectrogram(L,Tn,10,Tn,120,'yaxis')
+spectrogram(L,Tn,250,Tn,120,'yaxis')
 ylim([0 3])
 title("Spectrogram of L")
 
@@ -1193,13 +1196,18 @@ plot(filtState.');
 title("Internal KF states")
 
 subplot(3,2,[5 6])
-xline(k_lift, 'k--'); hold on
+plot(nan, 'k--', DisplayName="Measured Toe Off"); hold on
+plot(nan, 'k', DisplayName="Measured Heel Strike")
+plot(nan, '-', Color=fpeColor, DisplayName="Filtered signal peaks")
+plot(nan, 'c-', DisplayName="Unfiltered decision signal")
+plot(nan, 'b-', DisplayName="Filtered decision signal")
+legend(AutoUpdate="off")
+xline(k_lift, 'k--', DisplayName="Measured Toe Off"); hold on
 % xline(khat_lift, '--', Color=fpeColor)
-xline(k_strike, 'k')
-xline(khat_strike, '-', Color=fpeColor)
-plot(1:Tn, L, 'c-')
-plot(1:Tn, Llp, 'b-')
-
+xline(k_strike, 'k', DisplayName="Measured Heel Strike")
+xline(khat_strike, '-', Color=fpeColor, DisplayName="Filtered signal peaks")
+plot(1:Tn, L, 'c-', DisplayName="Unfiltered decision signal")
+plot(1:Tn, Llp, 'b-', DisplayName="Filtered decision signal")
 end
 
 function [] = saveAllOpenFigs(varargin)

@@ -1,12 +1,9 @@
-function [meas, measNames] = data2imuMeas(data, Trial, k, sensors, plc, varAcc, varGyr)
+function [meas] = data2imuMeas(data, Trial, k, plc, varAcc, varGyr)
 % DATA2IMUMEAS Transforms optical marker data as provided by Van der Zee to
 % emulated IMU measurements
 % data: marker data
 % Trial: Trial number
 % k: time indices
-% sensors: String array with active sensors
-%     UB = Upper Body
-%     ["UB", "Lfoot", "Rfoot"]
 % plc: [0 1], sensor placement between ASI and AC, 0 = at hip, 1 = at shoulderheight
 % varAcc, varGyr: variances on accelerometer and gyroscpe measurement noise
 
@@ -20,112 +17,79 @@ LAC = data(Trial).TargetData.LAC_pos_proc(:, 1:3);
 RAC = data(Trial).TargetData.RAC_pos_proc(:, 1:3);
 CAC = (LAC+RAC)./2; % Center of shoulderblades
 
-LGTR = data(Trial).TargetData.LGTR_pos_proc(:, 1:3);
-RGTR = data(Trial).TargetData.RGTR_pos_proc(:, 1:3);
+IMUmeas = trunkmarkers2imu(LASI, RASI, LAC, RAC, k, plc);
 
-LLML = data(Trial).TargetData.LLML_pos_proc(:, 1:3);
-RLML = data(Trial).TargetData.RLML_pos_proc(:, 1:3);
-LMML = data(Trial).TargetData.LMML_pos_proc(:, 1:3);
-RMML = data(Trial).TargetData.RMML_pos_proc(:, 1:3);
-L5TH = data(Trial).TargetData.L5TH_pos_proc(:, 1:3);
-R5TH = data(Trial).TargetData.R5TH_pos_proc(:, 1:3);
-
-RgrfVec = data(Trial).Force.force2(1:10:end,:);
-RgrfPos = data(Trial).Force.cop2(10:10:end,:);
-LgrfVec = data(Trial).Force.force1(1:10:end,:);
-LgrfPos = data(Trial).Force.cop1(10:10:end,:);
-
-meas = [];
-measNames = [];
-
-for s = ["UB", "Lfoot", "Rfoot"]
-if any(contains(sensors, s, "IgnoreCase", true))
-    switch s
-        case "UB"
-            IMUmeas = trunkmarkers2imu(LASI, RASI, LAC, RAC, k, plc);
-%         case "Lfoot"
-%             IMUmeas = footmarkers2imu(LLML, LMML, L5TH, k, "Left");
-%         case "Rfoot"
-%             IMUmeas = footmarkers2imu(LLML, LMML, L5TH, k, "Right");
-    end
-
-    noisyMeas = IMUmeas + blkdiag(eye(3).*sqrt(varAcc), eye(3).*sqrt(varGyr))*randn(6,1);
-
-    meas = [meas; noisyMeas];
-    measNames = [measNames; s];
-end
+meas = IMUmeas + blkdiag(eye(3).*sqrt(varAcc), eye(3).*sqrt(varGyr))*randn(6,1);
 
 end
 
-end
-
-function IMUmeas = footmarkers2imu(LML, MML, Toe, k, side)
-imuPos = MML(k-2:k,:) + 2/3.* (Toe(k-2:k,:) - MML(k-2:k,:));
-
-accN = diff(imuPos, 2, 1).*120^2 + [0;0;-9.81]; % Acceleration in frame N
-
-% Orientation
-if side == "Left"
-    Y = LML(k,:) - MML(k,:);
-elseif side == "Right"
-    Y = MML(k,:) - LML(k,:);
-else
-    error("Faulty input");
-end
-
-X = Toe(k,:) - LML(k,:);
-
-Z = cross(X, Y);
-Y = cross(Z, X);
-
-fRn = diag(1./vecnorm([X; Y; Z], 2, 2))*[X; Y; Z];
-NqF = rotm2quat(fRn');
-
-accF = fRn'*accN';
-
-% Previous Orientation
-if side == "Left"
-    Y = LML(k-1,:) - MML(k-1,:);
-elseif side == "Right"
-    Y = MML(k-1,:) - LML(k-1,:);
-else
-    error("Faulty input");
-end
-
-X = Toe(k-1,:) - LML(k-1,:);
-
-Z = cross(X, Y);
-Y = cross(Z, X);
-
-fRn_prev = diag(1./vecnorm([X; Y; Z], 2, 2))*[X; Y; Z];
-NqF_prev = rotm2quat(fRn_prev');
-
-% Next Orientation
-if side == "Left"
-    Y = LML(k+1,:) - MML(k+1,:);
-elseif side == "Right"
-    Y = MML(k+1,:) - LML(k+1,:);
-else
-    error("Faulty input");
-end
-
-X = Toe(k+1,:) - LML(k+1,:);
-
-Z = cross(X, Y);
-Y = cross(Z, X);
-
-fRn_next = diag(1./vecnorm([X; Y; Z], 2, 2))*[X; Y; Z];
-NqF_next = rotm2quat(fRn_next');
-
-% Angular velocity
-dNqF = (NqF_next - NqF_prev)*120/2;
-
-angVelN = 2*quat2barmatr(NqF)'*dNqF';
-angVelN = angVelN(2:end);
-angVelF = fRn*angVelN;
-
-IMUmeas = [accF; angVelF];
-end
+% function IMUmeas = footmarkers2imu(LML, MML, Toe, k, side)
+% imuPos = MML(k-2:k,:) + 2/3.* (Toe(k-2:k,:) - MML(k-2:k,:));
+%
+% accN = diff(imuPos, 2, 1).*120^2 + [0;0;-9.81]; % Acceleration in frame N
+%
+% % Orientation
+% if side == "Left"
+%     Y = LML(k,:) - MML(k,:);
+% elseif side == "Right"
+%     Y = MML(k,:) - LML(k,:);
+% else
+%     error("Faulty input");
+% end
+%
+% X = Toe(k,:) - LML(k,:);
+%
+% Z = cross(X, Y);
+% Y = cross(Z, X);
+%
+% fRn = diag(1./vecnorm([X; Y; Z], 2, 2))*[X; Y; Z];
+% NqF = rotm2quat(fRn');
+%
+% accF = fRn'*accN';
+%
+% % Previous Orientation
+% if side == "Left"
+%     Y = LML(k-1,:) - MML(k-1,:);
+% elseif side == "Right"
+%     Y = MML(k-1,:) - LML(k-1,:);
+% else
+%     error("Faulty input");
+% end
+%
+% X = Toe(k-1,:) - LML(k-1,:);
+%
+% Z = cross(X, Y);
+% Y = cross(Z, X);
+%
+% fRn_prev = diag(1./vecnorm([X; Y; Z], 2, 2))*[X; Y; Z];
+% NqF_prev = rotm2quat(fRn_prev');
+%
+% % Next Orientation
+% if side == "Left"
+%     Y = LML(k+1,:) - MML(k+1,:);
+% elseif side == "Right"
+%     Y = MML(k+1,:) - LML(k+1,:);
+% else
+%     error("Faulty input");
+% end
+%
+% X = Toe(k+1,:) - LML(k+1,:);
+%
+% Z = cross(X, Y);
+% Y = cross(Z, X);
+%
+% fRn_next = diag(1./vecnorm([X; Y; Z], 2, 2))*[X; Y; Z];
+% NqF_next = rotm2quat(fRn_next');
+%
+% % Angular velocity
+% dNqF = (NqF_next - NqF_prev)*120/2;
+%
+% angVelN = 2*quat2barmatr(NqF)'*dNqF';
+% angVelN = angVelN(2:end);
+% angVelF = fRn*angVelN;
+%
+% IMUmeas = [accF; angVelF];
+% end
 
 function IMUmeas = trunkmarkers2imu(LASI, RASI, LAC, RAC, k, hRatio)
 CASI = (LASI(k-1:k+1,:) + RASI(k-1:k+1,:))./2;
