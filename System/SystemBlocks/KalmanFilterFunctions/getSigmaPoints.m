@@ -14,13 +14,13 @@ catch ME
     rethrow(ME);
 end
 
-X_km1 = nan(nx, nx+1);
-X_km2 = nan(nx, nx);
+X_km1 = nan(length(m), nx+1);
+X_km2 = nan(length(m), nx);
 
-X_km1(:,1) = m;
-X_km1(:, 2:nx+1) = m + c*sqrtP;
-X_km2 = m - c*sqrtP;
+X_km1(1:nx,1) = m(1:nx);
+X_km1(1:nx, 2:nx+1) = m(1:nx) + c*sqrtP;
+X_km2(1:nx, :) = m(1:nx) - c*sqrtP;
 
 X_km = [X_km1, X_km2];
-
+X_km(nx+1:end, :) = kron(ones(1, length(m)-nx+1), m(nx+1:end));
 end

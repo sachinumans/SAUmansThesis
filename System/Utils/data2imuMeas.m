@@ -1,23 +1,64 @@
-function [meas] = data2imuMeas(data, Trial, k, plc, varAcc, varGyr)
+function [meas] = data2imuMeas(k, hRatio, varAcc, varGyr, LASI, RASI, LAC, RAC)
 % DATA2IMUMEAS Transforms optical marker data as provided by Van der Zee to
 % emulated IMU measurements
 % data: marker data
 % Trial: Trial number
 % k: time indices
-% plc: [0 1], sensor placement between ASI and AC, 0 = at hip, 1 = at shoulderheight
+% hRatio: [0 1], sensor placement between ASI and AC, 0 = at hip, 1 = at shoulderheight
 % varAcc, varGyr: variances on accelerometer and gyroscpe measurement noise
 
-%% Extract data
-SACR = data(Trial).TargetData.SACR_pos_proc(:, 1:3);
-LASI = data(Trial).TargetData.LASI_pos_proc(:, 1:3);
-RASI = data(Trial).TargetData.RASI_pos_proc(:, 1:3);
-COM = (SACR+LASI+RASI)./3; % COM estimate
+CASI = (LASI(:, k-2:k+2) + RASI(:, k-2:k+2))./2;
+CAC = (LAC(:, k-2:k+2) + RAC(:, k-2:k+2))./2;
+imuPos = CASI + hRatio.* (CAC - CASI);
 
-LAC = data(Trial).TargetData.LAC_pos_proc(:, 1:3);
-RAC = data(Trial).TargetData.RAC_pos_proc(:, 1:3);
-CAC = (LAC+RAC)./2; % Center of shoulderblades
+velN = nan(3, 3);
+for d = 2:4
+    velN(:, d-1) = (imuPos(:,d+1) - imuPos(:,d-1))*60;
+end
 
-IMUmeas = trunkmarkers2imu(LASI, RASI, LAC, RAC, k, plc);
+accN =  (velN(:, 3) - velN(:, 1))*60 + [0;0;-9.81]; % Acceleration in frame N
+
+% Current Orientation
+Y = LASI(:, k)-RASI(:, k);
+Z = CAC(:, 3)-CASI(:, 3);
+
+X = cross(Y,Z);
+Y = cross(Z,X);
+
+nRb = [X./norm(X), Y./norm(Y), Z./norm(Z)];
+NqB = rotm2quat(nRb);
+
+accB = nRb'*accN;
+
+% Previous Orientation
+Y = LASI(:, k-1)-RASI(:, k-1);
+Z = CAC(:, 2)-CASI(:, 2);
+
+X = cross(Y,Z);
+Y = cross(Z,X);
+
+nRb = [X./norm(X), Y./norm(Y), Z./norm(Z)];
+NqB_prev = rotm2quat(nRb);
+
+% Next Orientation
+Y = LASI(:, k+1)-RASI(:, k+1);
+Z = CAC(:, 4)-CASI(:, 4);
+
+X = cross(Y,Z);
+Y = cross(Z,X);
+
+nRb = [X./norm(X), Y./norm(Y), Z./norm(Z)];
+NqB_next = rotm2quat(nRb);
+
+% Angular velocity
+dNqB = (NqB_next - NqB_prev)*120/2;
+
+angVelN = 2*quat2barmatr(NqB)'*dNqB';
+angVelN = angVelN(2:end);
+% angVelB = nRb'*angVelN;
+angVelB =2* [zeros(3,1) eye(3)]* quat2matr(NqB)'*dNqB';
+
+IMUmeas = [accB; angVelB];
 
 meas = IMUmeas + blkdiag(eye(3).*sqrt(varAcc), eye(3).*sqrt(varGyr))*randn(6,1);
 
@@ -90,53 +131,3 @@ end
 %
 % IMUmeas = [accF; angVelF];
 % end
-
-function IMUmeas = trunkmarkers2imu(LASI, RASI, LAC, RAC, k, hRatio)
-CASI = (LASI(k-1:k+1,:) + RASI(k-1:k+1,:))./2;
-CAC = (LAC(k-1:k+1,:) + RAC(k-1:k+1,:))./2;
-imuPos = CASI + hRatio.* (CAC - CASI);
-
-accN =  (CASI(3,:) - CASI(1,:))*60 + [0,0,-9.81]; % Acceleration in frame N
-
-% Orientation
-Y = LASI(k,:)-RASI(k,:);
-Z = CAC(end,:)-CASI(end,:);
-
-X = cross(Y,Z);
-Y = cross(Z,X);
-
-bRn = diag(1./vecnorm([X; Y; Z], 2, 2))*[X; Y; Z];
-NqB = rotm2quat(bRn');
-
-accB = bRn*accN';
-
-% Previous Orientation
-Y = LASI(k-1,:)-RASI(k-1,:);
-Z = CAC(end-1,:)-CASI(end-1,:);
-
-X = cross(Y,Z);
-Y = cross(Z,X);
-
-bRn = diag(1./vecnorm([X; Y; Z], 2, 2))*[X; Y; Z];
-NqB_prev = rotm2quat(bRn');
-
-% Next Orientation
-Y = LASI(k+1,:)-RASI(k+1,:);
-Z = (LAC(k+1,:) + RAC(k+1,:))./2 - (LASI(k+1,:) + RASI(k+1,:))./2;
-
-X = cross(Y,Z);
-Y = cross(Z,X);
-
-bRn = diag(1./vecnorm([X; Y; Z], 2, 2))*[X; Y; Z];
-NqB_next = rotm2quat(bRn');
-
-% Angular velocity
-dNqB = (NqB_next - NqB_prev)*120/2;
-
-angVelN = 2*quat2barmatr(NqB)'*dNqB';
-angVelN = angVelN(2:end);
-angVelB = bRn*angVelN;
-
-IMUmeas = [accB; angVelB];
-
-end
