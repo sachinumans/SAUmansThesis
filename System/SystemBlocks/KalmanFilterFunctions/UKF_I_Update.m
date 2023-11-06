@@ -19,7 +19,7 @@ C = Wc_0*(Xtil(1:nx,1)*Ytil(:,1).') + Wc_i*(Xtil(1:nx,2:end)*Ytil(:,2:end).');
 
 % step 4
 K = C/S;
-m_k = m_mink(1:4) + K*(y - mu);
+m_k = m_mink(1:nx) + K*(y - mu);
 P_k = P_mink - K*S*K.';
 
 end

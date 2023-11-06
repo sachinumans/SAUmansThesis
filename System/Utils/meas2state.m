@@ -1,4 +1,4 @@
-function [x] = meas2state(LASI, RASI, COM, CAC)
+function [x] = meas2state(LASI, RASI, SACR, COM, CAC)
 % Body fixed frame
 nBz = CAC-COM; % Along the spine
 nBY = LASI-RASI; % Pelvis direction
@@ -16,9 +16,6 @@ nRb = cat(3, nBx, nBy, nBz); % Rotation matrix from B to N
 nRb = permute(nRb, [1 3 2]);
 nqb = rotm2quat(nRb).'; % Rotation quaternion
 
-% Zero mean COM height
-COMz = COM(3, 2:end-1) - mean(COM(3, 2:end-1));
-
 % Differentiate - central difference
 ndCOM = (COM(:, 3:end) - COM(:, 1:end-2)).*60;
 bdCOM = nan(size(ndCOM));
@@ -28,5 +25,5 @@ end
 dnqb = (nqb(:, 3:end) - nqb(:, 1:end-2)).*60;
 
 % Compile
-x = [COMz; bdCOM; nqb(:, 2:end-1); dnqb];
+x = [bdCOM; nqb(:, 2:end-1); dnqb];
 end

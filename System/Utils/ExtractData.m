@@ -1,4 +1,4 @@
-function [LASI, RASI, COM, LAC, RAC, CAC, LGTR, RGTR, LLML, RLML, LMML, RMML, ... = ExtractData(...)
+function [LASI, RASI, SACR, COM, LAC, RAC, CAC, LGTR, RGTR, LLML, RLML, LMML, RMML, ... = ExtractData(...)
     RgrfVec, RgrfPos_correct, LgrfVec, LgrfPos_correct, LgrfMag, RgrfMag]...
     = ExtractData(data, Trial, k, bound)
 % See van der Zee, T. J., Mundinger, E. M., & Kuo, A. D. (2022). A biomechanics

@@ -16,7 +16,7 @@ load modelParams.mat
 
 %% Define Observation data
 TrialNum = 8;
-k = (1:(120*25))+120*20; % Observation data
+k = (1:(120*15))+120*20; % Observation data
 
 plotIO = 1; % Plot data?
 debugMode = true;
@@ -35,15 +35,16 @@ varAcc = 1e-2; % Accelerometer noise variance
 varGyr = 1e-2;%1e-5; % Gyroscope noise variance
 
 % Uncertainty matrices
-Qukf = diag(min(w(1:4))./w(1:4)) * 1e-1;
+Qukf = diag(min(w(1:3))./w(1:3)) * 1e-1;
 Rukf = blkdiag(eye(3).*varAcc, eye(3).*varGyr);
 
 DedriftEveryNSteps = 4;
 Ki = 0.05; % Integral correction term for lateral velocity
 
-P0 = 1e-4*eye(4);
+P0 = 1e-4*eye(3);
 
 UseFPE = false;
+UsePerfectInput = false;
 UsePhaseChangeDetection = false;
 
 %% Unpack comparison data
@@ -53,7 +54,7 @@ treadVel = TrialNum2treadVel(TrialNum); % Treadmill velocity
 m = data(TrialNum).Participant.Mass; % Body mass
 bound = m*9.81*BMthr; % Ground Reaction Force (GRF) threshold for foot detection
 
-[LASI, RASI, COM, LAC, RAC, CAC, LGTR, RGTR, LLML, RLML, LMML, RMML, RgrfVec, RgrfPos, LgrfVec, LgrfPos, LgrfMag, RgrfMag]...
+[LASI, RASI, SACR, COM, LAC, RAC, CAC, LGTR, RGTR, LLML, RLML, LMML, RMML, RgrfVec, RgrfPos, LgrfVec, LgrfPos, LgrfMag, RgrfMag]...
     = ExtractData(data, TrialNum, k, bound); % Unpack optical marker and forceplate data
 
 % Correct for treadmill walking
@@ -61,6 +62,7 @@ ROTM = eul2rotm(deg2rad([90 0 0]),'ZYX');
 TreadmilCorrection = (0:length(k)-1).*treadVel*dt;
 LASI = ROTM*(LASI' + TreadmilCorrection);
 RASI = ROTM*(RASI' + TreadmilCorrection);
+SACR = ROTM*(SACR' + TreadmilCorrection);
 COM = ROTM*(COM' + TreadmilCorrection);
 LAC = ROTM*(LAC' + TreadmilCorrection);
 RAC = ROTM*(RAC' + TreadmilCorrection);
@@ -80,7 +82,7 @@ LLML(3, :) = LLML(3, :) - min(LLML(3, :)); % Correct for markerheight
 RLML(3, :) = RLML(3, :) - min(RLML(3, :));
 
 % Translate optical markers to state trajectories
-xMeas = meas2state(LASI, RASI, COM, CAC);
+xMeas = meas2state(LASI, RASI, SACR, COM, CAC);
 % State:      x(1)   : CoM height in frame N
 %             x(2:4) : CoM velocity in frame B
 %             x(5:8) : Rotation quaternion from B to N
@@ -95,12 +97,14 @@ disp(strjoin(["The training data starts in" gaitCycle0(1)]))
 [k_strike, nStepPosAbsolute, avgBoundMin, avgBoundMax] ...
     = getPhaseChangeTime(LgrfMag, RgrfMag, bound, LgrfPos, RgrfPos, gaitCycle0); % Retrieve indices where the phase changes
 %     and the world coordinates of the foot placements
+% k_strike = k_strike -8;
 
 uMeas = AbsoluteStep2RelativeStep(xMeas, nStepPosAbsolute, COM, k_strike, gaitCycle0); % Translate world coordinates to body relative coords
 
 %% Collect measurements
 bh = mean(vecnorm(COM - CAC, 2, 1)); % Approximate torso height
 bS = [-0.07; 0; sens_hRatio*bh]; % Body relative sensor position
+bS = [0; 0; 0]; % Body relative sensor position
 
 y = nan(6,length(k));
 
@@ -123,7 +127,6 @@ y(1:3,:) = y(1:3,:) - mean(y(1:3,:), 2) + [0;0;-9.81];
 %% Initialise
 %%% CoM variables
 gaitCycle = gaitCycle0;
-xMeas(1,:) = xMeas(1,:) - min(xMeas(1,:));
 
 x0 = xMeas(:,[1 k_strike(1)]);
 u0 = uMeas(:,[1 k_strike(1)]);
@@ -147,10 +150,10 @@ filtStateDQ = nan(length(sinGenSysDQ.A), length(xMeas));
 xhat_kkmDQ = zeros(length(sinGenSysDQ.A), 1);
 P_kkmDQ = 1e1 * eye(length(sinGenSysDQ.A));
 
-x0(5:12) = [1; zeros(7,1)];
-xHat = nan(12, length(xMeas));
+x0(4:11) = [1; zeros(7,1)];
+xHat = nan(11, length(xMeas));
 uHat = nan(3, length(xMeas));
-Pcov = nan(4,4,length(xMeas));
+Pcov = nan(3,3,length(xMeas));
 xHat(:, [1 k_strike(1)]) = x0;
 uHat(:, [1 k_strike(1)]) = u0;
 Pcov(:,:,[1 k_strike(1)]) = cat(3, P0, P0);
@@ -164,63 +167,63 @@ xVelIntegral = 0;
 for idx = 1:k_strike(1)-1
     %%% Estimate orientation
     % Estimate derivative
-    dq = 0.5* quat2matr(xHat(5:8, idx)) *[0; y(4:6, idx)];
+    dq = 0.5* quat2matr(xHat(4:7, idx)) *[0; y(4:6, idx)];
 
     [filtStateDQ(:,idx), ~] = KFmeasurementUpdate(dq, xhat_kkmDQ, zeros(4,1), P_kkmDQ, sinGenSysDQ.C, sinGenSysDQ.D, RoscilDQ);
     [xhat_kkmDQ, P_kkmDQ] = KFtimeUpdate(dq, xhat_kkmDQ, zeros(4,1), P_kkmDQ, sinGenSysDQ.A, sinGenSysDQ.B, sinGenSysDQ.C, sinGenSysDQ.D, QoscilDQ, SoscilDQ, RoscilDQ);
     
-    xHat(9:12, idx+1) = sinGenSysDQ.C*filtStateDQ(:,idx);
+    xHat(8:11, idx+1) = sinGenSysDQ.C*filtStateDQ(:,idx);
 
     % Estimate rotation
-    xHat(5:8, idx+1) = xHat(5:8, idx) + dt*dq;
+    xHat(4:7, idx+1) = xHat(4:7, idx) + dt*dq;
 
-    xHat(5:8, idx+1) = xHat(5:8, idx+1) ./ norm(xHat(5:8, idx+1));
+    xHat(4:7, idx+1) = xHat(4:7, idx+1) ./ norm(xHat(4:7, idx+1));
 
-    [filtStateQ(:,idx), ~] = KFmeasurementUpdate(xHat(6:8, idx+1), xhat_kkmQ, uSteady, P_kkmQ, sinGenSysQ.C, sinGenSysQ.D, RoscilQ);
-    [xhat_kkmQ, P_kkmQ] = KFtimeUpdate(xHat(6:8, idx+1), xhat_kkmQ, uSteady, P_kkmQ, sinGenSysQ.A, sinGenSysQ.B, sinGenSysQ.C, sinGenSysQ.D, QoscilQ, SoscilQ, RoscilQ);
+    [filtStateQ(:,idx), ~] = KFmeasurementUpdate(xHat(5:7, idx+1), xhat_kkmQ, uSteady, P_kkmQ, sinGenSysQ.C, sinGenSysQ.D, RoscilQ);
+    [xhat_kkmQ, P_kkmQ] = KFtimeUpdate(xHat(5:7, idx+1), xhat_kkmQ, uSteady, P_kkmQ, sinGenSysQ.A, sinGenSysQ.B, sinGenSysQ.C, sinGenSysQ.D, QoscilQ, SoscilQ, RoscilQ);
     
-    xHat(6:8, idx+1) = sinGenSysQ.C*filtStateQ(:,idx);
-    xHat(5:8, idx+1) = xHat(5:8, idx+1) ./ norm(xHat(5:8, idx+1));
+    xHat(5:7, idx+1) = sinGenSysQ.C*filtStateQ(:,idx);
+    xHat(4:7, idx+1) = xHat(4:7, idx+1) ./ norm(xHat(4:7, idx+1));
 end
 
 tic
 for idx = k_strike(1):length(xMeas)-1
     %%% Estimate orientation
     % Estimate derivative
-    dq = 0.5* quat2matr(xHat(5:8, idx)) *[0; y(4:6, idx)];
+    dq = 0.5* quat2matr(xHat(4:7, idx)) *[0; y(4:6, idx)];
 
     [filtStateDQ(:,idx), ~] = KFmeasurementUpdate(dq, xhat_kkmDQ, zeros(4,1), P_kkmDQ, sinGenSysDQ.C, sinGenSysDQ.D, RoscilDQ);
     [xhat_kkmDQ, P_kkmDQ] = KFtimeUpdate(dq, xhat_kkmDQ, zeros(4,1), P_kkmDQ, sinGenSysDQ.A, sinGenSysDQ.B, sinGenSysDQ.C, sinGenSysDQ.D, QoscilDQ, SoscilDQ, RoscilDQ);
     
-    xHat(9:12, idx+1) = sinGenSysDQ.C*filtStateDQ(:,idx);
+    xHat(8:11, idx+1) = sinGenSysDQ.C*filtStateDQ(:,idx);
 
     % Estimate rotation
-    xHat(5:8, idx+1) = xHat(5:8, idx) + dt*dq;
+    xHat(4:7, idx+1) = xHat(4:7, idx) + dt*dq;
 
-    xHat(5:8, idx+1) = xHat(5:8, idx+1) ./ norm(xHat(5:8, idx+1));
+    xHat(4:7, idx+1) = xHat(4:7, idx+1) ./ norm(xHat(4:7, idx+1));
 
-    [filtStateQ(:,idx), ~] = KFmeasurementUpdate(xHat(6:8, idx+1), xhat_kkmQ, uSteady, P_kkmQ, sinGenSysQ.C, sinGenSysQ.D, RoscilQ);
-    [xhat_kkmQ, P_kkmQ] = KFtimeUpdate(xHat(6:8, idx+1), xhat_kkmQ, uSteady, P_kkmQ, sinGenSysQ.A, sinGenSysQ.B, sinGenSysQ.C, sinGenSysQ.D, QoscilQ, SoscilQ, RoscilQ);
+    [filtStateQ(:,idx), ~] = KFmeasurementUpdate(xHat(5:7, idx+1), xhat_kkmQ, uSteady, P_kkmQ, sinGenSysQ.C, sinGenSysQ.D, RoscilQ);
+    [xhat_kkmQ, P_kkmQ] = KFtimeUpdate(xHat(5:7, idx+1), xhat_kkmQ, uSteady, P_kkmQ, sinGenSysQ.A, sinGenSysQ.B, sinGenSysQ.C, sinGenSysQ.D, QoscilQ, SoscilQ, RoscilQ);
     
-    xHat(6:8, idx+1) = sinGenSysQ.C*filtStateQ(:,idx);
-    xHat(5:8, idx+1) = xHat(5:8, idx+1) ./ norm(xHat(5:8, idx+1));
+    xHat(5:7, idx+1) = sinGenSysQ.C*filtStateQ(:,idx);
+    xHat(4:7, idx+1) = xHat(4:7, idx+1) ./ norm(xHat(4:7, idx+1));
 
     %%% Estimate CoM states
     % UKF
-    [m_mink,P_mink] = UKF_I_Prediction(@(t, x, u) x(1:4) + dt*EoM_model(x, u, gaitCycle(1), pOpt),...
-        xHat(:,idx), uHat(:, idx), Pcov(:,:,idx), Qukf, alpha, beta, kappa, 4);
-    m_mink = [m_mink; xHat(5:12,idx)];
+    [m_mink,P_mink] = UKF_I_Prediction(@(t, x, u) x(1:3) + dt*EoM_model(x, u, gaitCycle(1), pOpt),...
+        xHat(:,idx), uHat(:, idx), Pcov(:,:,idx), Qukf, alpha, beta, kappa, 3);
+    m_mink = [m_mink; xHat(4:11,idx)];
 
-    [xHat(1:4,idx+1), Pcov(:,:,idx+1)] = UKF_I_Update(y(:,idx), ...
+    [xHat(1:3,idx+1), Pcov(:,:,idx+1)] = UKF_I_Update(y(:,idx), ...
         @(t, x, u) meas_model(x, u, bS, gaitCycle(1), pOpt), ...
-        m_mink, uHat(:, idx), P_mink, Rukf, alpha, beta, kappa, 4);
+        m_mink, uHat(:, idx), P_mink, Rukf, alpha, beta, kappa, 3);
 
 
     % Estimated output
     yHat(:,idx) = meas_model(xHat(:,idx), uHat(:, idx), bS, gaitCycle(1), pOpt);
 
     %%% Gait Phase Change Detection
-    Lws = circshift(Lws, -1); Lws(end) = xHat(3,idx+1);
+    Lws = circshift(Lws, -1); Lws(end) = xHat(2,idx+1);
     [Llp(idx), PCD_filtState(:,idx), PCD_xhat_kkm, PCD_P_kkm, PhChDect_genSys] = PhaChaDect_filter(Lws, PCD_xhat_kkm, 0, PCD_P_kkm, PhChDect_genSys, PCD_Q, PCD_S, PCD_R, PCD_ws, idx);
     
 
@@ -248,21 +251,23 @@ for idx = k_strike(1):length(xMeas)-1
             uHat(:, idx+1) = uMeas(:, idx+1);
         end
 
-        xHat(1,idx+1) = 0;
-        xHat(4,idx+1) = 0;
+        xHat(3,idx+1) = 0;
         
-        Pcov([1 4],[1 4],idx+1) = P0([1 4], [1 4]);
-        Pcov(:,:,idx+1) = forceRealPosDef(Pcov(:,:,idx+1));
+%         Pcov(3,3,idx+1) = P0(3, 3);
+%         Pcov(:,:,idx+1) = forceRealPosDef(Pcov(:,:,idx+1));
 
         gaitCycle = circshift(gaitCycle, -1);
+    elseif UsePerfectInput
+        uHat(:, idx+1) = uMeas(:, idx+1);
     else 
-        uHat(:, idx+1) = uHat(:, idx) - dt*xHat(2:4, idx+1);
+        uHat(:, idx+1) = uHat(:, idx) - dt*xHat(1:3, idx+1);
     end
 
 
     %%% Estimate and remove linear drifting from velocities
     % Counteract drift
-    xHat(2, idx+1) = xHat(2, idx+1) - dt*DriftEstimate(1);
+    xHat(1, idx+1) = xHat(1, idx+1) - dt*DriftEstimate(1);
+    xHat(2, idx+1) = xHat(2, idx+1) - dt*DriftEstimate(2);
 
 %     xVelIntegral = min(max(xVelIntegral + dt*xHat(3, idx+1), -0.15), 0.15);
 %     xHat(3, idx+1) = xHat(3, idx+1) - Ki*xVelIntegral;
@@ -274,88 +279,76 @@ for idx = k_strike(1):length(xMeas)-1
     if stepsSinceDedrift >= DedriftEveryNSteps && length(khat_strike) > DedriftEveryNSteps && impactIO
         windowIDX = khat_strike(end-DedriftEveryNSteps):idx;
         tw = (1:length(windowIDX)).*dt;
-        driftedVels = xHat(2:3,windowIDX) - mean(xHat(2:3,windowIDX), 2);
+        driftedVels = xHat(1:2,windowIDX) - mean(xHat(1:2,windowIDX), 2);
         DriftEstimate(1) = DriftEstimate(1) + tw'\driftedVels(1,:)';
-%         DriftEstimate(2) = DriftEstimate(2) + tw'\driftedVels(2,:)';
-        xHat(2, idx+1) = xHat(2, idx+1) - tw(end)*DriftEstimate(1) - mean(xHat(2,windowIDX), 2) + x0(2);
-%         xHat(3, idx+1) = xHat(3, idx+1) - tw(end)*DriftEstimate(2) - mean(xHat(3,windowIDX), 2);
-    else
+        DriftEstimate(2) = DriftEstimate(2) + tw'\driftedVels(2,:)';
+        xHat(1, idx+1) = xHat(1, idx+1) - tw(end)*DriftEstimate(1) + x0(1) ;%- mean(xHat(1,windowIDX), 2);
+        xHat(2, idx+1) = xHat(2, idx+1) - tw(end)*DriftEstimate(2)         ;%- 0.5*mean(xHat(2,windowIDX), 2);
+    elseif impactIO
         stepsSinceDedrift = stepsSinceDedrift+1;
     end
 
 
 
-        xHat(2:3, idx+1) = xMeas(2:3, idx+1);
+        xHat(2, idx+1) = xMeas(2, idx+1);
 end
-toc
+runTime = toc
+realtimefactor = runTime/(t(end)-t(1))
 
 %% Plot
 tSim = t(1:idx);
 
 figure(WindowState="maximized")
 counter = 1;
-ax(counter) = subplot(2,2,1); counter = counter+1;
-plot(tSim, xMeas(1,1:idx), 'r','DisplayName',"Meas - $z$")
-hold on
-plot(tSim, xHat(1,1:idx), 'b','DisplayName',"Obs - $\hat{z}$")
-legend('AutoUpdate', 'off','Interpreter','latex')
-for i = flip(khat_strike)
-    xline(tSim(i), 'k-', {gaitCycle(1)})
-    gaitCycle = circshift(gaitCycle, 1);
-end
-xlabel("Time / s")
-ylabel("Position / m")
-title("CoM position")
-ylim([-0.1 0.1])
 
-ax(counter) = subplot(4,2,2); counter = counter+1;
-plot(tSim, xMeas(2,1:idx), 'r--','DisplayName',"Meas - $\dot{x}$")
+ax(counter) = subplot(3,2,1); counter = counter+1;
+plot(tSim, xMeas(1,1:idx), 'r--','DisplayName',"Meas - $\dot{x}$")
 hold on
-plot(tSim, xHat(2,1:idx), 'b--','DisplayName',"Obs - $\dot{\hat{x}}$")
+plot(tSim, xHat(1,1:idx), 'b--','DisplayName',"Obs - $\dot{\hat{x}}$")
 title("CoM velocity")
 legend('AutoUpdate', 'off','Interpreter','latex')
 
-ax(counter) = subplot(4,2,4); counter = counter+1;
-plot(tSim, xMeas(3,1:idx), 'r-.','DisplayName',"Meas - $\dot{y}$")
+ax(counter) = subplot(3,2,3); counter = counter+1;
+plot(tSim, xMeas(2,1:idx), 'r-.','DisplayName',"Meas - $\dot{y}$")
 hold on
-plot(tSim, xHat(3,1:idx)', 'b-.','DisplayName',"Obs - $\dot{\hat{y}}$")
+plot(tSim, xHat(2,1:idx)', 'b-.','DisplayName',"Obs - $\dot{\hat{y}}$")
 legend('AutoUpdate', 'off','Interpreter','latex')
 
-ax(counter) = subplot(4,2,6); counter = counter+1;
-plot(tSim, xMeas(4,1:idx), 'r','DisplayName',"Meas - $\dot{z}$")
+ax(counter) = subplot(3,2,5); counter = counter+1;
+plot(tSim, xMeas(3,1:idx), 'r','DisplayName',"Meas - $\dot{z}$")
 hold on
-plot(tSim, xHat(4,1:idx), 'b','DisplayName',"Obs - $\dot{\hat{z}}$")
+plot(tSim, xHat(3,1:idx), 'b','DisplayName',"Obs - $\dot{\hat{z}}$")
 xlabel("Time / s")
 ylabel("Velocity / (m/s)")
 legend('AutoUpdate', 'off','Interpreter','latex')
 % ylim([-0.5 1.5])
 
-ax(counter) = subplot(2,2,3); counter = counter+1;
-plot(tSim, xMeas(5,1:idx), 'r','DisplayName',"Meas - $q_0$")
+ax(counter) = subplot(2,2,2); counter = counter+1;
+plot(tSim, xMeas(4,1:idx), 'r','DisplayName',"Meas - $q_0$")
 hold on
-plot(tSim, xMeas(6,1:idx), 'r--','DisplayName',"Meas - $q_1$")
-plot(tSim, xMeas(7,1:idx), 'r-.','DisplayName',"Meas - $q_2$")
-plot(tSim, xMeas(8,1:idx), 'r:','DisplayName',"Meas - $q_3$")
-plot(tSim, xHat(5,1:idx), 'b','DisplayName',  "Obs - $\hat{q}_0$")
-plot(tSim, xHat(6,1:idx), 'b--','DisplayName',"Obs - $\hat{q}_1$")
-plot(tSim, xHat(7,1:idx), 'b-.','DisplayName',"Obs - $\hat{q}_2$")
-plot(tSim, xHat(8,1:idx), 'b:','DisplayName',"Obs - $\hat{q}_3$")
+plot(tSim, xMeas(5,1:idx), 'r--','DisplayName',"Meas - $q_1$")
+plot(tSim, xMeas(6,1:idx), 'r-.','DisplayName',"Meas - $q_2$")
+plot(tSim, xMeas(7,1:idx), 'r:','DisplayName',"Meas - $q_3$")
+plot(tSim, xHat(4,1:idx), 'b','DisplayName',  "Obs - $\hat{q}_0$")
+plot(tSim, xHat(5,1:idx), 'b--','DisplayName',"Obs - $\hat{q}_1$")
+plot(tSim, xHat(6,1:idx), 'b-.','DisplayName',"Obs - $\hat{q}_2$")
+plot(tSim, xHat(7,1:idx), 'b:','DisplayName',"Obs - $\hat{q}_3$")
 legend('Interpreter','latex')
 xlabel("Time / s")
 ylabel("Quaternion")
 title("Orientation")
 ylim([-0.1 1.1])
 
-ax(counter) = subplot(4,2,8); counter = counter+1;
-plot(tSim, xMeas(9,1:idx), 'r','DisplayName',"Meas - $\dot{q}_0$")
+ax(counter) = subplot(2,2,4); counter = counter+1;
+plot(tSim, xMeas(8,1:idx), 'r','DisplayName',"Meas - $\dot{q}_0$")
 hold on
-plot(tSim, xMeas(10,1:idx), 'r--','DisplayName',"Meas - $\dot{q}_1$")
-plot(tSim, xMeas(11,1:idx), 'r-.','DisplayName',"Meas - $\dot{q}_2$")
-plot(tSim, xMeas(12,1:idx), 'r:','DisplayName', "Meas - $\dot{q}_3$")
-plot(tSim, xHat(9,1:idx), 'b','DisplayName',  "Obs - $\dot{\hat{q}}_0$")
-plot(tSim, xHat(10,1:idx), 'b--','DisplayName',"Obs - $\dot{\hat{q}}_1$")
-plot(tSim, xHat(11,1:idx), 'b-.','DisplayName',"Obs - $\dot{\hat{q}}_2$")
-plot(tSim, xHat(12,1:idx), 'b:','DisplayName', "Obs - $\dot{\hat{q}}_3$")
+plot(tSim, xMeas(9,1:idx), 'r--','DisplayName',"Meas - $\dot{q}_1$")
+plot(tSim, xMeas(10,1:idx), 'r-.','DisplayName',"Meas - $\dot{q}_2$")
+plot(tSim, xMeas(11,1:idx), 'r:','DisplayName', "Meas - $\dot{q}_3$")
+plot(tSim, xHat(8,1:idx), 'b','DisplayName',  "Obs - $\dot{\hat{q}}_0$")
+plot(tSim, xHat(9,1:idx), 'b--','DisplayName',"Obs - $\dot{\hat{q}}_1$")
+plot(tSim, xHat(10,1:idx), 'b-.','DisplayName',"Obs - $\dot{\hat{q}}_2$")
+plot(tSim, xHat(11,1:idx), 'b:','DisplayName', "Obs - $\dot{\hat{q}}_3$")
 legend('Interpreter','latex')
 xlabel("Time / s")
 title("Orientation derivative")
@@ -537,7 +530,7 @@ uMeas = nan(3, length(xMeas));
 
 stepCounter = 0;
 for k = timeWithInput
-    nRb = quat2R(xMeas(5:8, k)); % Rotate absolute to body fixed
+    nRb = quat2R(xMeas(4:7, k)); % Rotate absolute to body fixed
     if any(k == k_strike)
         stepCounter = stepCounter +1;
     end

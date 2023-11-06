@@ -5,7 +5,7 @@ load modelParams.mat subjectNum
 % [pathstr,name,ext]  = fileparts(mfile_name);
 % cd(pathstr);
 
-clc; close all;
+% clc; close all;
 clearvars -except data subjectNum
 
 % load measurement data
@@ -39,7 +39,7 @@ treadVel = TrialNum2treadVel(TrialNum); % Treadmill velocity
 m = data(TrialNum).Participant.Mass; % Body mass
 bound = m*9.81*BMthr; % Ground Reaction Force (GRF) threshold for foot detection
 
-[LASI, RASI, COM, LAC, RAC, CAC, LGTR, RGTR, LLML, RLML, LMML, RMML, RgrfVec, RgrfPos, LgrfVec, LgrfPos, LgrfMag, RgrfMag]...
+[LASI, RASI, SACR, COM, LAC, RAC, CAC, LGTR, RGTR, LLML, RLML, LMML, RMML, RgrfVec, RgrfPos, LgrfVec, LgrfPos, LgrfMag, RgrfMag]...
     = ExtractData(data, TrialNum, k, bound); % Unpack optical marker and forceplate data
 
 % Correct for treadmill walking
@@ -47,6 +47,7 @@ ROTM = eul2rotm(deg2rad([90 0 0]),'ZYX');
 TreadmilCorrection = (0:length(k)-1).*treadVel*dt;
 LASI = ROTM*(LASI' + TreadmilCorrection);
 RASI = ROTM*(RASI' + TreadmilCorrection);
+SACR = ROTM*(SACR' + TreadmilCorrection);
 COM = ROTM*(COM' + TreadmilCorrection);
 LAC = ROTM*(LAC' + TreadmilCorrection);
 RAC = ROTM*(RAC' + TreadmilCorrection);
@@ -63,7 +64,7 @@ RgrfVec = ROTM*(RgrfVec');
 LgrfVec = ROTM*(LgrfVec');
 
 % Translate optical markers to state trajectories
-xMeas = meas2state(LASI, RASI, COM, CAC);
+xMeas = meas2state(LASI, RASI, SACR, COM, CAC);
 % State:      x(1:3)  : CoM in frame N
 %             x(4:6)  : CoM velocity in frame N
 %             x(7:10) : Rotation quaternion from B to N
@@ -132,7 +133,7 @@ filtStateQ = nan(length(sinGenSysQ.A), length(xMeas));
 xhat_kkmQ = zeros(length(sinGenSysQ.A), 1);
 P_kkmQ = 1e1 * eye(length(sinGenSysQ.A));
 
-ySteady = [0.011; 0.023; 0.023]; % mean(xMeas(8:10,:), 2);
+ySteady = mean(xMeas(6:8,:), 2);
 uSteady = ((sinGenSysQ.C/(eye(size(sinGenSysQ.A)) - sinGenSysQ.A))*sinGenSysQ.B)\ySteady;
 
 RoscilQ = eye(size(sinGenSysQ, 1))*varGyr;
@@ -180,14 +181,14 @@ end
 toc
 
 %% Compare
-RMSEq = sqrt(mean(sum((xMeas(5:8,:) - xHat(5:8, :)).^2, 1)))
-RMSEdq = sqrt(mean(sum((xMeas(9:12,:) - xHat(9:12, :)).^2, 1)))
+RMSEq = sqrt(mean(sum((xMeas(4:7,:) - xHat(4:7, :)).^2, 1)))
+RMSEdq = sqrt(mean(sum((xMeas(8:11,:) - xHat(8:11, :)).^2, 1)))
 
 %% plot
 f = 120*(0:(length(xMeas)/2))/length(xMeas);
 figure()
 for q = 1:4
-Y = fft(xMeas(q+4,:));
+Y = fft(xMeas(q+3,:));
 P2 = abs(Y/length(xMeas));
 P1{q} = P2(1:length(xMeas)/2+1);
 P1{q}(2:end-1) = 2*P1{q}(2:end-1);
@@ -213,14 +214,14 @@ legend()
 
 figure();
 ax(1) = subplot(2, 1, 1);
-plot(t, xHat(5:8, :), 'b', DisplayName="Estimate"); hold on
-plot(t, xMeas(5:8, :), 'r', DisplayName="Measurement")
+plot(t,  xHat(4:7, :), 'b', DisplayName="Estimate"); hold on
+plot(t, xMeas(4:7, :), 'r', DisplayName="Measurement")
 title("Quaternion")
 legend()
 
 ax(2) = subplot(2, 1, 2);
-plot(t,  xHat(9:12, :), 'b', DisplayName="Estimate"); hold on
-plot(t, xMeas(9:12, :), 'r', DisplayName="Measurement")
+plot(t,  xHat(8:11, :), 'b', DisplayName="Estimate"); hold on
+plot(t, xMeas(8:11, :), 'r', DisplayName="Measurement")
 title("Quaternion derivative")
 legend()
 
