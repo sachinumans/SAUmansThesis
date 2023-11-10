@@ -1,7 +1,7 @@
-function [dx, bGRF, bF_len, dbF_len] = EoM_model(x, u, phase, pars)
+function [dx, bGRF, bF_len, dbF_len] = EoM_model(t, x, u, phase, pars)
 %EOM_MODEL Equations of Motion in state space form for the human walking model
-%     x [12 1] State
-%     u [3 1] for single stance, [3 2] for double stance, Input, Foot
+%     x [11 1] State
+%     u [3 1] Input, Foot
 %           position in body fixed frame
 %     phase in {"LSS", "RSS"}
 %     pars [7] Model parameters
@@ -30,6 +30,10 @@ GRFmag = max(GRFmag, 0);
 
 %% Calculate centre of mass acceleration
 bGRF = GRFmag * bGRFdirSS;
+
+if t <= 0.05 % Compensate for double stance
+    bGRF(1) = 0;
+end
 
 nZ = m*[0;0;-9.81];
 nRb = quat2R(x(4:7));

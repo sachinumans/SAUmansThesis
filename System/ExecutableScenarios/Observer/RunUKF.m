@@ -10,7 +10,8 @@ clearvars -except data subjectNum
 
 % load measurement data
 if exist("data","var") ~= 1
-    load([pwd '\..\..\..\human-walking-biomechanics\Level 3 - MATLAB files\Level 3 - MATLAB files\All Strides Data files\p' num2str(subjectNum) '_AllStridesData.mat'])
+    load([pwd '\..\..\..\human-walking-biomechanics\Level 3 - MATLAB files\Level 3 - MATLAB files\All Strides Data files\p'...
+        num2str(subjectNum) '_AllStridesData.mat'])
 end
 load modelParams.mat
 
@@ -45,7 +46,7 @@ P0 = 1e-1*eye(3);
 
 UseFPE = true;
 UsePerfectInput = false;
-UsePhaseChangeDetection = true;
+UsePhaseChangeDetection = false;
 
 %% Unpack comparison data
 t = data(TrialNum).Time.TIME(k); % Time series
@@ -124,12 +125,20 @@ y(1:3,:) = y(1:3,:) - mean(y(1:3,:), 2) + [0;0;-9.81];
 
 
 %% Initialise
-%%% CoM variables
-gaitCycle = gaitCycle0;
-
 x0 = xMeas(:,[1 k_strike(1)]);
 u0 = uMeas(:,[1 k_strike(1)]);
 
+x0(4:11) = [1; zeros(7,1)];
+
+xHat = nan(11, length(xMeas));
+uHat = nan(3, length(xMeas));
+
+Pcov = nan(3,3,length(xMeas));
+xHat(:, [1 k_strike(1)]) = x0;
+uHat(:, [1 k_strike(1)]) = u0;
+Pcov(:,:,[1 k_strike(1)]) = cat(3, P0, P0);
+
+%%% CoM variables
 khat_strike = [];
 
 Llp = zeros(1, length(xMeas));
@@ -140,7 +149,6 @@ PCD_filtState = nan(length(PhChDect_genSys.A), 1);
 PCD_xhat_kkm = zeros(length(PhChDect_genSys.A), 1);
 PCD_P_kkm = 1e1 * eye(length(PhChDect_genSys.A));
 
-%%% Orientation variables
 filtStateQ = nan(length(sinGenSysQ.A), length(xMeas));
 xhat_kkmQ = zeros(length(sinGenSysQ.A), 1);
 P_kkmQ = 1e1 * eye(length(sinGenSysQ.A));
@@ -151,11 +159,18 @@ P_kkmDQ = 1e1 * eye(length(sinGenSysDQ.A));
 
 x0(4:11) = [1; zeros(7,1)];
 xHat = nan(11, length(xMeas));
-uHat = nan(3, length(xMeas));
-Pcov = nan(3,3,length(xMeas));
-xHat(:, [1 k_strike(1)]) = x0;
-uHat(:, [1 k_strike(1)]) = u0;
-Pcov(:,:,[1 k_strike(1)]) = cat(3, P0, P0);
+%%% Orientation variables
+filtState = nan(length(sys_oscil.A), length(xMeas), 3);
+xhat_kkm = zeros(length(sys_oscil.A), 3);
+P_kkm = nan(length(sys_oscil.A), length(sys_oscil.A), 3);
+for i2 = 1:3; P_kkm(:,:, i2) = 1e-3 * eye(length(sys_oscil.A)); end
+
+qHat =   nan(4, length(xMeas));
+dqHat =  nan(4, length(xMeas));
+ddqHat = nan(4, length(xMeas));
+qHat(:,1) =   qSteady;
+dqHat(:,1) =  [0;0;0;0];
+ddqHat(:,1) = [0;0;0;0];
 
 %%% Dedrifting
 stepsSinceDedrift = 0;
@@ -165,65 +180,76 @@ yVelIntegral = 0;
 %% Run UKF over time
 for idx = 1:k_strike(1)-1
     %%% Estimate orientation
-    % Estimate derivative
-    dq = 0.5* quat2matr(xHat(4:7, idx)) *[0; y(4:6, idx)];
+    % Angular velocity
+    dqNoisy = 0.5* quat2matr(qHat(:,idx)) *[0; y(4:6, idx)];
+    [filtState(:,idx,2), ~] = KFmeasurementUpdate(dqNoisy, xhat_kkm(:,2), zeros(4,1), P_kkm(:,:, 2), sys_oscil.C, sys_oscil.D, Roscil);
+    [xhat_kkm(:,2), P_kkm(:,:, 2)] = KFtimeUpdate(dqNoisy, xhat_kkm(:,2), zeros(4,1), P_kkm(:,:, 2)...
+        , sys_oscil.A, sys_oscil.B, sys_oscil.C, sys_oscil.D, 1e-1*Qoscil, Soscil, Roscil);
+    dqHat(:, idx+1) = sys_oscil.C*filtState(:,idx, 2);
 
-    [filtStateDQ(:,idx), ~] = KFmeasurementUpdate(dq, xhat_kkmDQ, zeros(4,1), P_kkmDQ, sinGenSysDQ.C, sinGenSysDQ.D, RoscilDQ);
-    [xhat_kkmDQ, P_kkmDQ] = KFtimeUpdate(dq, xhat_kkmDQ, zeros(4,1), P_kkmDQ, sinGenSysDQ.A, sinGenSysDQ.B, sinGenSysDQ.C, sinGenSysDQ.D, QoscilDQ, SoscilDQ, RoscilDQ);
-    
-    xHat(8:11, idx+1) = sinGenSysDQ.C*filtStateDQ(:,idx);
+    % Angular orientation
+    qNoisy = qHat(:,idx) + dt * dqHat(:, idx);
+    qNoisy = qNoisy./norm(qNoisy);
+    [filtState(:,idx,1), ~] = KFmeasurementUpdate(qNoisy-qSteady, xhat_kkm(:,1), zeros(4,1), P_kkm(:,:, 1), sys_oscil.C, sys_oscil.D, Roscil);
+    [xhat_kkm(:,1), P_kkm(:,:, 1)] = KFtimeUpdate(qNoisy-qSteady, xhat_kkm(:,1), zeros(4,1), P_kkm(:,:, 1)...
+        , sys_oscil.A, sys_oscil.B, sys_oscil.C, sys_oscil.D, 1e1*Qoscil, Soscil, Roscil);
+    qHat(:, idx+1) = sys_oscil.C*filtState(:,idx, 1) + qSteady;
+    qHat(:, idx+1) = qHat(:, idx+1)./norm(qHat(:, idx+1));
 
-    % Estimate rotation
-    xHat(4:7, idx+1) = xHat(4:7, idx) + dt*dq;
-
-    xHat(4:7, idx+1) = xHat(4:7, idx+1) ./ norm(xHat(4:7, idx+1));
-
-    [filtStateQ(:,idx), ~] = KFmeasurementUpdate(xHat(5:7, idx+1), xhat_kkmQ, uSteady, P_kkmQ, sinGenSysQ.C, sinGenSysQ.D, RoscilQ);
-    [xhat_kkmQ, P_kkmQ] = KFtimeUpdate(xHat(5:7, idx+1), xhat_kkmQ, uSteady, P_kkmQ, sinGenSysQ.A, sinGenSysQ.B, sinGenSysQ.C, sinGenSysQ.D, QoscilQ, SoscilQ, RoscilQ);
-    
-    xHat(5:7, idx+1) = sinGenSysQ.C*filtStateQ(:,idx);
-    xHat(4:7, idx+1) = xHat(4:7, idx+1) ./ norm(xHat(4:7, idx+1));
+    % Angular acceleration
+    ddqNoisy = (dqHat(:,idx+1) - dqHat(:, idx)) *120;
+    [filtState(:,idx,3), ~] = KFmeasurementUpdate(ddqNoisy, xhat_kkm(:,3), zeros(4,1), P_kkm(:,:, 3), sys_oscil.C, sys_oscil.D, Roscil);
+    [xhat_kkm(:,3), P_kkm(:,:, 3)] = KFtimeUpdate(ddqNoisy, xhat_kkm(:,3), zeros(4,1), P_kkm(:,:, 3)...
+        , sys_oscil.A, sys_oscil.B, sys_oscil.C, sys_oscil.D, 5e-2*Qoscil, Soscil, Roscil);
+    ddqHat(:, idx+1) = sys_oscil.C*filtState(:,idx, 3);
 end
 
 tic
 for idx = k_strike(1):length(xMeas)-1
     %%% Estimate orientation
-    % Estimate derivative
-    dq = 0.5* quat2matr(xHat(4:7, idx)) *[0; y(4:6, idx)];
+    % Angular velocity
+    dqNoisy = 0.5* quat2matr(qHat(:,idx)) *[0; y(4:6, idx)];
+    [filtState(:,idx,2), ~] = KFmeasurementUpdate(dqNoisy, xhat_kkm(:,2), zeros(4,1), P_kkm(:,:, 2), sys_oscil.C, sys_oscil.D, Roscil);
+    [xhat_kkm(:,2), P_kkm(:,:, 2)] = KFtimeUpdate(dqNoisy, xhat_kkm(:,2), zeros(4,1), P_kkm(:,:, 2)...
+        , sys_oscil.A, sys_oscil.B, sys_oscil.C, sys_oscil.D, 1e-1*Qoscil, Soscil, Roscil);
+    dqHat(:, idx+1) = sys_oscil.C*filtState(:,idx, 2);
 
-    [filtStateDQ(:,idx), ~] = KFmeasurementUpdate(dq, xhat_kkmDQ, zeros(4,1), P_kkmDQ, sinGenSysDQ.C, sinGenSysDQ.D, RoscilDQ);
-    [xhat_kkmDQ, P_kkmDQ] = KFtimeUpdate(dq, xhat_kkmDQ, zeros(4,1), P_kkmDQ, sinGenSysDQ.A, sinGenSysDQ.B, sinGenSysDQ.C, sinGenSysDQ.D, QoscilDQ, SoscilDQ, RoscilDQ);
-    
-    xHat(8:11, idx+1) = sinGenSysDQ.C*filtStateDQ(:,idx);
+    % Angular orientation
+    qNoisy = qHat(:,idx) + dt * dqHat(:, idx);
+    qNoisy = qNoisy./norm(qNoisy);
+    [filtState(:,idx,1), ~] = KFmeasurementUpdate(qNoisy-qSteady, xhat_kkm(:,1), zeros(4,1), P_kkm(:,:, 1), sys_oscil.C, sys_oscil.D, Roscil);
+    [xhat_kkm(:,1), P_kkm(:,:, 1)] = KFtimeUpdate(qNoisy-qSteady, xhat_kkm(:,1), zeros(4,1), P_kkm(:,:, 1)...
+        , sys_oscil.A, sys_oscil.B, sys_oscil.C, sys_oscil.D, 1e1*Qoscil, Soscil, Roscil);
+    qHat(:, idx+1) = sys_oscil.C*filtState(:,idx, 1) + qSteady;
+    qHat(:, idx+1) = qHat(:, idx+1)./norm(qHat(:, idx+1));
 
-    % Estimate rotation
-    xHat(4:7, idx+1) = xHat(4:7, idx) + dt*dq;
+    % Angular acceleration
+    ddqNoisy = (dqHat(:,idx+1) - dqHat(:, idx)) *120;
+    [filtState(:,idx,3), ~] = KFmeasurementUpdate(ddqNoisy, xhat_kkm(:,3), zeros(4,1), P_kkm(:,:, 3), sys_oscil.C, sys_oscil.D, Roscil);
+    [xhat_kkm(:,3), P_kkm(:,:, 3)] = KFtimeUpdate(ddqNoisy, xhat_kkm(:,3), zeros(4,1), P_kkm(:,:, 3)...
+        , sys_oscil.A, sys_oscil.B, sys_oscil.C, sys_oscil.D, 5e-2*Qoscil, Soscil, Roscil);
+    ddqHat(:, idx+1) = sys_oscil.C*filtState(:,idx, 3);
 
-    xHat(4:7, idx+1) = xHat(4:7, idx+1) ./ norm(xHat(4:7, idx+1));
-
-    [filtStateQ(:,idx), ~] = KFmeasurementUpdate(xHat(5:7, idx+1), xhat_kkmQ, uSteady, P_kkmQ, sinGenSysQ.C, sinGenSysQ.D, RoscilQ);
-    [xhat_kkmQ, P_kkmQ] = KFtimeUpdate(xHat(5:7, idx+1), xhat_kkmQ, uSteady, P_kkmQ, sinGenSysQ.A, sinGenSysQ.B, sinGenSysQ.C, sinGenSysQ.D, QoscilQ, SoscilQ, RoscilQ);
-    
-    xHat(5:7, idx+1) = sinGenSysQ.C*filtStateQ(:,idx);
-    xHat(4:7, idx+1) = xHat(4:7, idx+1) ./ norm(xHat(4:7, idx+1));
+    xHat(4:11,idx+1) = [qHat(:, idx+1); dqHat(:, idx+1)];
 
     %%% Estimate CoM states
     % UKF
-    [m_mink,P_mink] = UKF_I_Prediction(@(t, x, u) x(1:3) + dt*EoM_model(x, u, gaitCycle(1), pOpt),...
+    [m_mink,P_mink] = UKF_I_Prediction(@(t, x, u) x(1:3) + dt*EoM_model(t_thisStep, x, u, gaitCycle(1), pOpt),...
         xHat(:,idx), uHat(:, idx), Pcov(:,:,idx), Qukf, alpha, beta, kappa, 3);
     m_mink = [m_mink; xHat(4:11,idx)];
 
     [xHat(1:3,idx+1), Pcov(:,:,idx+1)] = UKF_I_Update(y(:,idx), ...
-        @(t, x, u) meas_model(x, u, bS, gaitCycle(1), pOpt), ...
+        @(t, x, u) meas_model(t_thisStep, x, u, ddqHat(:, idx), bS, gaitCycle(1), pOpt), ...
         m_mink, uHat(:, idx), P_mink, Rukf, alpha, beta, kappa, 3);
 
 
     % Estimated output
-    yHat(:,idx) = meas_model(xHat(:,idx), uHat(:, idx), bS, gaitCycle(1), pOpt);
+    yHat(:,idx) = meas_model(t_thisStep, xHat(:,idx), uHat(:, idx), ddqHat(:, idx), bS, gaitCycle(1), pOpt);
 
     %%% Gait Phase Change Detection
     Lws = circshift(Lws, -1); Lws(end) = xHat(2,idx+1);
-    [Llp(idx), PCD_filtState(:,idx), PCD_xhat_kkm, PCD_P_kkm, PhChDect_genSys] = PhaChaDect_filter(Lws, PCD_xhat_kkm, 0, PCD_P_kkm, PhChDect_genSys, PCD_Q, PCD_S, PCD_R, PCD_ws, idx);
+    [Llp(idx), PCD_filtState(:,idx), PCD_xhat_kkm, PCD_P_kkm, PhChDect_genSys] = ...
+        PhaChaDect_filter(Lws, PCD_xhat_kkm, 0, PCD_P_kkm, PhChDect_genSys, PCD_Q, PCD_S, PCD_R, PCD_ws, idx);
     
 
     Llpmem = circshift(Llpmem, -1); Llpmem(3) = Llp(idx);
@@ -242,15 +268,17 @@ for idx = k_strike(1):length(xMeas)-1
         
         if UseFPE
             if gaitCycle(1) == "LSS" || gaitCycle(1) == "lSS"
-                [uHat(:, idx+1), ~, ~] = StepControllerFPE(xHat(:,idx), lmax, SLcorrR, 0.5*SWcorrR);
+                [uHat(:, idx+1), ~, ~] = StepControllerFPE(xHat(:,idx), lmax, SLcorrR, 1*SWcorrR);
             else
-                [uHat(:, idx+1), ~, ~] = StepControllerFPE(xHat(:,idx), lmax, SLcorrL, 0.5*SWcorrL);
+                [uHat(:, idx+1), ~, ~] = StepControllerFPE(xHat(:,idx), lmax, SLcorrL, 1*SWcorrL);
             end
         else
             uHat(:, idx+1) = uMeas(:, idx+1);
         end
 
+%         xHat(1, idx+1) = x0(1);
         xHat(3,idx+1) = 0;
+        t_thisStep = 0;
         
 %         Pcov(3,3,idx+1) = P0(3, 3);
 %         Pcov(:,:,idx+1) = forceRealPosDef(Pcov(:,:,idx+1));
@@ -258,41 +286,43 @@ for idx = k_strike(1):length(xMeas)-1
         gaitCycle = circshift(gaitCycle, -1);
     elseif UsePerfectInput
         uHat(:, idx+1) = uMeas(:, idx+1);
+        t_thisStep = t_thisStep + dt;
     else 
-        uHat(:, idx+1) = uHat(:, idx) - dt*xHat(1:3, idx+1);
+        omeg_BN = 2*quat2matr(qHat(:,idx))*dqHat(:,idx);
+        uHat(:, idx+1) = uHat(:, idx) + dt*(-xHat(1:3, idx+1) + cross(omeg_BN(2:4), uHat(:, idx)));
         if gaitCycle(1) == "LSS" || gaitCycle(1) == "lSS"
             uHat(2, idx+1) = max(uHat(2, idx+1), 0);
         else
             uHat(2, idx+1) = min(uHat(2, idx+1), 0);
         end
-
+        t_thisStep = t_thisStep + dt;
     end
 
 
-    %%% Estimate and remove linear drifting from velocities
-    % Counteract drift
-    xHat(1, idx+1) = xHat(1, idx+1) - dt*DriftEstimate(1);
-%     xHat(2, idx+1) = xHat(2, idx+1) - dt*DriftEstimate(2);
+%     %%% Estimate and remove linear drifting from velocities
+%     % Counteract drift
+%     xHat(1, idx+1) = xHat(1, idx+1) - dt*DriftEstimate(1);
+% %     xHat(2, idx+1) = xHat(2, idx+1) - dt*DriftEstimate(2);
+% 
+% %     yVelIntegral = min(max(yVelIntegral + dt*xHat(2, idx+1), -0.2), 0.2);
+% %     xHat(2, idx+1) = xHat(2, idx+1) - Ki*yVelIntegral;
+% 
+%     % Estimate drift
+%     if stepsSinceDedrift >= DedriftEveryNSteps && length(khat_strike) > DedriftEveryNSteps && impactIO
+%         windowIDX = khat_strike(end-DedriftEveryNSteps):idx;
+%         tw = (1:length(windowIDX)).*dt;
+%         driftedVels = xHat(1:2,windowIDX) - mean(xHat(1:2,windowIDX), 2);
+%         DriftEstimate(1) = DriftEstimate(1) + tw'\driftedVels(1,:)';
+%         DriftEstimate(2) = DriftEstimate(2) + tw'\driftedVels(2,:)';
+%         xHat(1, idx+1) = xHat(1, idx+1) - tw(end)*DriftEstimate(1) + x0(1)-0.35 - mean(xHat(1,windowIDX), 2);
+% %         xHat(2, idx+1) = xHat(2, idx+1) - tw(end)*DriftEstimate(2)         - 0.5*mean(xHat(2,windowIDX), 2);
+%     elseif impactIO
+%         stepsSinceDedrift = stepsSinceDedrift+1;
+%     end
 
-    yVelIntegral = min(max(yVelIntegral + dt*xHat(2, idx+1), -0.2), 0.2);
-    xHat(2, idx+1) = xHat(2, idx+1) - Ki*yVelIntegral;
-
-    % Estimate drift
-    if stepsSinceDedrift >= DedriftEveryNSteps && length(khat_strike) > DedriftEveryNSteps && impactIO
-        windowIDX = khat_strike(end-DedriftEveryNSteps):idx;
-        tw = (1:length(windowIDX)).*dt;
-        driftedVels = xHat(1:2,windowIDX) - mean(xHat(1:2,windowIDX), 2);
-        DriftEstimate(1) = DriftEstimate(1) + tw'\driftedVels(1,:)';
-        DriftEstimate(2) = DriftEstimate(2) + tw'\driftedVels(2,:)';
-        xHat(1, idx+1) = xHat(1, idx+1) - tw(end)*DriftEstimate(1) + x0(1)-0.35 - mean(xHat(1,windowIDX), 2);
-%         xHat(2, idx+1) = xHat(2, idx+1) - tw(end)*DriftEstimate(2)         - 0.5*mean(xHat(2,windowIDX), 2);
-    elseif impactIO
-        stepsSinceDedrift = stepsSinceDedrift+1;
-    end
 
 
-
-%         xHat([3], idx+1) = xMeas([3], idx+1);
+        xHat([2], idx+1) = xMeas([2], idx+1);
 end
 runTime = toc
 realtimefactor = runTime/(t(end)-t(1))
@@ -303,7 +333,7 @@ tSim = t(1:idx);
 figure(WindowState="maximized")
 counter = 1;
 
-ax(counter) = subplot(3,2,1); counter = counter+1;
+ax(counter) = subplot(3,1,1); counter = counter+1;
 plot(tSim, xMeas(1,1:idx), 'r--','DisplayName',"Meas - $\dot{x}$")
 hold on
 plot(tSim, xHat(1,1:idx), 'b--','DisplayName',"Obs - $\dot{\hat{x}}$")
@@ -311,15 +341,17 @@ title("CoM velocity")
 legend('AutoUpdate', 'off','Interpreter','latex')
 xline(t(khat_strike), 'k')
 
-ax(counter) = subplot(3,2,3); counter = counter+1;
+ax(counter) = subplot(3,1,2); counter = counter+1;
 plot(tSim, xMeas(2,1:idx), 'r-.','DisplayName',"Meas - $\dot{y}$")
 hold on
 plot(tSim, xHat(2,1:idx)', 'b-.','DisplayName',"Obs - $\dot{\hat{y}}$")
 legend('AutoUpdate', 'off','Interpreter','latex')
 xline(t(khat_strike), 'k')
-xline(t(k_strike(1) + 15*120), 'c--', LineWidth=2, Label="Start of PCD")
+if UsePhaseChangeDetection
+    xline(t(k_strike(1) + 15*120), 'c--', LineWidth=2, Label="Start of PCD")
+end
 
-ax(counter) = subplot(3,2,5); counter = counter+1;
+ax(counter) = subplot(3,1,3); counter = counter+1;
 plot(tSim, xMeas(3,1:idx), 'r','DisplayName',"Meas - $\dot{z}$")
 hold on
 plot(tSim, xHat(3,1:idx), 'b','DisplayName',"Obs - $\dot{\hat{z}}$")
@@ -329,38 +361,26 @@ legend('AutoUpdate', 'off','Interpreter','latex')
 xline(t(khat_strike), 'k')
 % ylim([-0.5 1.5])
 
-ax(counter) = subplot(2,2,2); counter = counter+1;
-plot(tSim, xMeas(4,1:idx), 'r','DisplayName',"Meas - $q_0$")
-hold on
-plot(tSim, xMeas(5,1:idx), 'r--','DisplayName',"Meas - $q_1$")
-plot(tSim, xMeas(6,1:idx), 'r-.','DisplayName',"Meas - $q_2$")
-plot(tSim, xMeas(7,1:idx), 'r:','DisplayName',"Meas - $q_3$")
-plot(tSim, xHat(4,1:idx), 'b','DisplayName',  "Obs - $\hat{q}_0$")
-plot(tSim, xHat(5,1:idx), 'b--','DisplayName',"Obs - $\hat{q}_1$")
-plot(tSim, xHat(6,1:idx), 'b-.','DisplayName',"Obs - $\hat{q}_2$")
-plot(tSim, xHat(7,1:idx), 'b:','DisplayName',"Obs - $\hat{q}_3$")
-legend('Interpreter','latex', AutoUpdate='off')
-xline(t(khat_strike), 'k')
-xlabel("Time / s")
-ylabel("Quaternion")
-title("Orientation")
-ylim([-0.1 1.1])
 
-ax(counter) = subplot(2,2,4); counter = counter+1;
-plot(tSim, xMeas(8,1:idx), 'r','DisplayName',"Meas - $\dot{q}_0$")
-hold on
-plot(tSim, xMeas(9,1:idx), 'r--','DisplayName',"Meas - $\dot{q}_1$")
-plot(tSim, xMeas(10,1:idx), 'r-.','DisplayName',"Meas - $\dot{q}_2$")
-plot(tSim, xMeas(11,1:idx), 'r:','DisplayName', "Meas - $\dot{q}_3$")
-plot(tSim, xHat(8,1:idx), 'b','DisplayName',  "Obs - $\dot{\hat{q}}_0$")
-plot(tSim, xHat(9,1:idx), 'b--','DisplayName',"Obs - $\dot{\hat{q}}_1$")
-plot(tSim, xHat(10,1:idx), 'b-.','DisplayName',"Obs - $\dot{\hat{q}}_2$")
-plot(tSim, xHat(11,1:idx), 'b:','DisplayName', "Obs - $\dot{\hat{q}}_3$")
-legend('Interpreter','latex', AutoUpdate='off')
-xline(t(khat_strike), 'k')
-xlabel("Time / s")
-title("Orientation derivative")
-% ylim([-2 2])
+figure(WindowState="maximized");
+ctr = 1;
+for i = 1:4
+    ax(counter) = subplot(4, 3, ctr); ctr = ctr+1; counter = counter+1;
+    plot(t, qHat(i, :), 'b', DisplayName="Estimate"); hold on
+    plot(t, xMeas(i+3, :), 'r', DisplayName="Measurement")
+    title(['q_' num2str(i)])
+
+    ax(counter) = subplot(4, 3, ctr); ctr = ctr+1; counter = counter+1;
+    plot(t, dqHat(i, :), 'b', DisplayName="Estimate"); hold on
+    plot(t, xMeas(i+7, :), 'r', DisplayName="Measurement")
+    title(['dq_' num2str(i)])
+
+    ax(counter) = subplot(4, 3, ctr); ctr = ctr+1; counter = counter+1;
+    plot(t, ddqHat(i, :), 'b', DisplayName="Estimate"); hold on
+    plot(t(2:end-1), (xMeas(i+7, 3:end)-xMeas(i+7, 1:end-2)).*60, 'r', DisplayName="Measurement")
+    title(['ddq_' num2str(i)])
+end
+legend()
 
 linkaxes(ax, 'x');
 sgtitle("Observed state")

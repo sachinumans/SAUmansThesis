@@ -265,43 +265,9 @@ if plotIO || true
 end
 
 %% Estimate reset maps
-%%% Method 1: Reset end-of-phase model state to the reinitialised measured
-%%% state
-% xPreResetLSS = nan(0, 14); xPreResetRSS = nan(0, 14); xPreResetlDSr = nan(0, 14); xPreResetrDSl = nan(0, 14);
-% xPostResetLSS = nan(0, 7); xPostResetRSS = nan(0, 7); xPostResetlDSr = nan(0, 7); xPostResetrDSl = nan(0, 7);
-% 
-% gaitCycle = gaitCycle0;
-% 
-% for idx = k_phaseSwitch
-%     switch gaitCycle(1)
-%         case {"lSS", "LSS"}
-%             xPreResetLSS = [ xPreResetLSS; xModel([4:6 11:14], idx-1)'];
-%             xPostResetLSS = [xPostResetLSS; xModel(:, idx)'];
-%         case {"rSS", "RSS"}
-%             xPreResetRSS = [ xPreResetRSS; xModel([4:6 11:14], idx-1)'];
-%             xPostResetRSS = [xPostResetRSS; xModel(:, idx)'];
-%         case "lDSr"
-%             xPreResetlDSr = [ xPreResetlDSr; xModel([4:6 11:14], idx-1)'];
-%             xPostResetlDSr = [xPostResetlDSr; xModel(:, idx)'];
-%         case "rDSl"
-%             xPreResetrDSl = [ xPreResetrDSl; xModel([4:6 11:14], idx-1)'];
-%             xPostResetrDSl = [xPostResetrDSl; xModel(:, idx)'];
-%         otherwise, error("Invalid phase");
-%     end
-%     gaitCycle = circshift(gaitCycle, -1);
-% end
-% 
-% phaseChangeResetMap.LSS2lDSr = lsqminnorm(xPreResetLSS, xPostResetLSS);
-% phaseChangeResetMap.lDSr2RSS = lsqminnorm(xPreResetlDSr, xPostResetlDSr);
-% phaseChangeResetMap.RSS2rDSl = lsqminnorm(xPreResetRSS, xPostResetRSS);
-% phaseChangeResetMap.rDSl2LSS = lsqminnorm(xPreResetrDSl, xPostResetrDSl);
-% % Issue with LLS? Some of the signals are not 0 centred
-% % Also humans are _way_ too squishy to do it over 1 timestep alone
-
-%%% Method 2: Identifying missing dynamics
 xIdxReset = 1:3; % What states should be considered for the reset map
 wBef = -0;
-wAft = 6;
+wAft = 9;
 
 nxIdxReset = length(xIdxReset);
 wLen = abs(wAft-wBef)+1;
@@ -377,50 +343,19 @@ drawnow
 
 %% Orientation observation
 % Create observable system
-s = tf('s');
-ResFreq = 0.97;
-sinGen = 1/(s^2 + (ResFreq*2*pi)^2); % complex pole pair
-sinGenSysCT = ss(sinGen);
 
-% Rotation quaternion system
-sinGenSysCTq = blkdiag(sinGenSysCT, sinGenSysCT, sinGenSysCT); % observe 3 oscilators
-sinGenSysQ = c2d(sinGenSysCTq, dt);
+[sys_oscil, Roscil, Qoscil, Soscil] = getOscilator_4channels(0.97, dt);
 
-filtStateQ = nan(length(sinGenSysQ.A), length(xMeas));
-xhat_kkmQ = zeros(length(sinGenSysQ.A), 1);
-P_kkmQ = 1e1 * eye(length(sinGenSysQ.A));
-
-ySteady = [0.011; 0.023; 0.023]; % mean(xMeas(8:10,:), 2);
-uSteady = ((sinGenSysQ.C/(eye(size(sinGenSysQ.A)) - sinGenSysQ.A))*sinGenSysQ.B)\ySteady;
-
-RoscilQ = eye(size(sinGenSysQ, 1))*0.1;
-QoscilQ = 15* eye(size(sinGenSysQ.A, 1))*0.1;
-SoscilQ = zeros(size(sinGenSysQ.A, 1), size(sinGenSysQ, 1));
-
-% Derivative system
-sinGenSysCTdq = blkdiag(sinGenSysCT, sinGenSysCT, sinGenSysCT, sinGenSysCT); % observe 4 oscilators
-sinGenSysDQ = c2d(sinGenSysCTdq, dt);
-
-filtStateDQ = nan(length(sinGenSysDQ.A), length(xMeas));
-xhat_kkmDQ = zeros(length(sinGenSysDQ.A), 1);
-P_kkmDQ = 1e1 * eye(length(sinGenSysDQ.A));
-
-RoscilDQ = eye(size(sinGenSysDQ, 1))*0.1;
-QoscilDQ = 1e-1* eye(size(sinGenSysDQ.A, 1))*0.1;
-SoscilDQ = zeros(size(sinGenSysDQ.A, 1), size(sinGenSysDQ, 1));
+qSteady = mean(xMeas(4:7,:), 2);
 
 %% Finish
 if ~debugMode
     save modelParams subjectNum TrialNum k w pOpt pOpt_list stateList SWcorrL SWcorrR SLcorrL SLcorrR lmax PhChDect_genSys PCD_Q PCD_S PCD_R PCD_ws dt BMthr ...
-        sinGenSysQ uSteady RoscilQ QoscilQ SoscilQ sinGenSysDQ RoscilDQ QoscilDQ SoscilDQ
-    saveAllOpenFigs("TrainingPerformance");
-    exportgraphics(resetFig,'noResetPhaseTransitions.pdf', ContentType='vector')
+        sys_oscil Roscil Qoscil Soscil qSteady
+    saveAllOpenFigs("Figures\TrainingPerformance");
+    exportgraphics(resetFig,'Figures\noResetPhaseTransitions.pdf', ContentType='vector')
 %     close all
 end
-
-OscillationFilter
-%%
-% saveAllOpenFigs("TrainingPerformance");
 
 %% Functions
 % For your own sanity, collapse these
@@ -791,6 +726,7 @@ timeWeight = zeros(1, length(xMeas));
 
 xModel(:,simTime(1)) = xMeas(:,simTime(1));
 xModel(3,simTime(1)) = 0;
+tModel = 0;
 
 counterPhaseDuration = 1;
 for idx = simTime(2:end)
@@ -799,15 +735,16 @@ for idx = simTime(2:end)
         xModel(3,idx) = 0;
         gaitCycle = circshift(gaitCycle, -1);
         counterPhaseDuration = 1;
+        tModel = 0;
         continue
     end
     uMeas(:,idx) = uMeas(:,idx) + dt*(xMeas(1:3, idx-1) - xModel(1:3, idx-1));
-    [dx, bGRF(:, idx), bL(idx), dbL(idx)] = EoM_model(xModel(:,idx-1), uMeas(:,idx), gaitCycle(1), p);
+    [dx, bGRF(:, idx), bL(idx), dbL(idx)] = EoM_model(tModel, xModel(:,idx-1), uMeas(:,idx), gaitCycle(1), p);
     xModel(1:3,idx) = xModel(1:3,idx-1) + dt*dx; % Forward Euler CoM states
     xModel(4:11,idx) = xMeas(4:11,idx);
     timeWeight(idx) = counterPhaseDuration;
     counterPhaseDuration = counterPhaseDuration+1;
-    
+    tModel = tModel+1/120;
 end
 
 xModelErr = xModel(:,simTime);
@@ -844,9 +781,9 @@ ylabel("Velocity / (m/s)")
 % ylim([-0.5 2])
 
 ax(i) = subplot(3,2,3); i=i+1;
-         plot(tMeas , xMeas (2,:), 'r:'  , DisplayName="Meas - $\dot{y}$" ); hold on
-plotIntervals(tMeas , xModel(2,:), 'b:'  ,             "Model - $\dot{y}$", k_strike)
-plot(nan, 'b:' , DisplayName="Model - $\dot{y}$")
+         plot(tMeas , xMeas (2,:), 'r-.'  , DisplayName="Meas - $\dot{y}$" ); hold on
+plotIntervals(tMeas , xModel(2,:), 'b-.'  ,             "Model - $\dot{y}$", k_strike)
+plot(nan, 'b-.' , DisplayName="Model - $\dot{y}$")
 legend(Interpreter="latex")
 xlabel("Time / s")
 ylabel("Velocity / (m/s)")

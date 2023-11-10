@@ -90,7 +90,6 @@ xMeas = xMeas(:, 2:end-1);
 
 xHat = nan(11,length(xMeas));
 xHat(1:3,:) = xMeas(1:3,:);
-dqHat = nan(6,length(y));
 
 % % Detrend acceleration measurements
 % ny = nan(size(y));
@@ -199,11 +198,6 @@ toc
 
 clearvars ax;
 figure(WindowState="maximized");
-% ax(1) = subplot(2, 1, 1);
-% plot(t,  yHat(1, :), 'b', DisplayName="Estimate"); hold on
-% plot(t(2:end-1), qMeas, 'r', DisplayName="Measurement")
-% title("Angular orientation")
-% % legend()
 ctr = 1;
 for i = 1:4
     ax(ctr) = subplot(4, 3, ctr); ctr = ctr+1;
