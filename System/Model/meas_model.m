@@ -3,7 +3,7 @@ function [IMUmeas] = meas_model(x, u, bS, phase, pars)
 %   Detailed explanation goes here
 
 [dx, ~, ~, ~] = EoM_model(x, u, phase, pars);
-nddC = dx(1:3);
+bddC = dx(1:3);
 ndqb =   x(8:11);
 nddqb = zeros(4,1); % Assumed because information for calculation is available
 
@@ -13,7 +13,7 @@ bOmeg = 2*T*Q'*ndqb;
 dbOmeg = 2*T*Q'*nddqb;
 
 nRb = quat2R(x(4:7));
-bddS = nRb'*nddC + cross(dbOmeg, bS) + cross(bOmeg, cross(bOmeg, bS)) + nRb'*[0;0;-9.81];
+bddS = bddC + cross(dbOmeg, bS) + cross(bOmeg, cross(bOmeg, bS)) + nRb'*[0;0;-9.81];
 
 IMUmeas = [bddS; bOmeg];
 

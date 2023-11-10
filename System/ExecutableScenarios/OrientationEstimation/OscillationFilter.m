@@ -65,10 +65,9 @@ LgrfVec = ROTM*(LgrfVec');
 
 % Translate optical markers to state trajectories
 xMeas = meas2state(LASI, RASI, SACR, COM, CAC);
-% State:      x(1:3)  : CoM in frame N
-%             x(4:6)  : CoM velocity in frame N
-%             x(7:10) : Rotation quaternion from B to N
-%             x(11:14): Rotation quaternion derivative
+% State:      x(1:3)  : CoM velocity in frame N
+%             x(4:7) : Rotation quaternion from B to N
+%             x(8:11): Rotation quaternion derivative
 
 %% Collect measurements
 y = nan(6,length(k));
@@ -87,8 +86,8 @@ y = y(:, 3:end-2);
 yClean = yClean(:, 3:end-2);
 xMeas = xMeas(:, 2:end-1);
 
-xHat = nan(14,length(xMeas));
-xHat(1:6,:) = xMeas(1:6,:);
+xHat = nan(11,length(xMeas));
+xHat(1:3,:) = xMeas(1:3,:);
 yHat = nan(6,length(y));
 
 % % Detrend acceleration measurements
@@ -133,7 +132,7 @@ filtStateQ = nan(length(sinGenSysQ.A), length(xMeas));
 xhat_kkmQ = zeros(length(sinGenSysQ.A), 1);
 P_kkmQ = 1e1 * eye(length(sinGenSysQ.A));
 
-ySteady = mean(xMeas(6:8,:), 2);
+ySteady = mean(xMeas(5:7,:), 2);
 uSteady = ((sinGenSysQ.C/(eye(size(sinGenSysQ.A)) - sinGenSysQ.A))*sinGenSysQ.B)\ySteady;
 
 RoscilQ = eye(size(sinGenSysQ, 1))*varGyr;
@@ -155,28 +154,28 @@ SoscilDQ = zeros(size(sinGenSysDQ.A, 1), size(sinGenSysDQ, 1));
 %% Loop through time
 % xHat(:, 1) = xMeas(:, 1);
 % xHat(:, 1) = ones(12,1)*eps;
-xHat(5:12, 1) = [1; zeros(7,1)];
+xHat(4:11, 1) = [1; zeros(7,1)];
 
 tic
 for idx = 1:length(xMeas)-1
     % Estimate derivative
-    dq = 0.5* quat2matr(xHat(5:8, idx)) *[0; y(4:6, idx)];
+    dq = 0.5* quat2matr(xHat(4:7, idx)) *[0; y(4:6, idx)];
 
     [filtStateDQ(:,idx), ~] = KFmeasurementUpdate(dq, xhat_kkmDQ, zeros(4,1), P_kkmDQ, sinGenSysDQ.C, sinGenSysDQ.D, RoscilDQ);
     [xhat_kkmDQ, P_kkmDQ] = KFtimeUpdate(dq, xhat_kkmDQ, zeros(4,1), P_kkmDQ, sinGenSysDQ.A, sinGenSysDQ.B, sinGenSysDQ.C, sinGenSysDQ.D, QoscilDQ, SoscilDQ, RoscilDQ);
     
-    xHat(9:12, idx+1) = sinGenSysDQ.C*filtStateDQ(:,idx);
+    xHat(8:11, idx+1) = sinGenSysDQ.C*filtStateDQ(:,idx);
 
     % Estimate rotation
-    xHat(5:8, idx+1) = xHat(5:8, idx) + dt*dq;
+    xHat(4:7, idx+1) = xHat(4:7, idx) + dt*dq;
 
-    xHat(5:8, idx+1) = xHat(5:8, idx+1) ./ norm(xHat(5:8, idx+1));
+    xHat(4:7, idx+1) = xHat(4:7, idx+1) ./ norm(xHat(4:7, idx+1));
 
-    [filtStateQ(:,idx), ~] = KFmeasurementUpdate(xHat(6:8, idx+1), xhat_kkmQ, uSteady, P_kkmQ, sinGenSysQ.C, sinGenSysQ.D, RoscilQ);
-    [xhat_kkmQ, P_kkmQ] = KFtimeUpdate(xHat(6:8, idx+1), xhat_kkmQ, uSteady, P_kkmQ, sinGenSysQ.A, sinGenSysQ.B, sinGenSysQ.C, sinGenSysQ.D, QoscilQ, SoscilQ, RoscilQ);
+    [filtStateQ(:,idx), ~] = KFmeasurementUpdate(xHat(5:7, idx+1), xhat_kkmQ, uSteady, P_kkmQ, sinGenSysQ.C, sinGenSysQ.D, RoscilQ);
+    [xhat_kkmQ, P_kkmQ] = KFtimeUpdate(xHat(5:7, idx+1), xhat_kkmQ, uSteady, P_kkmQ, sinGenSysQ.A, sinGenSysQ.B, sinGenSysQ.C, sinGenSysQ.D, QoscilQ, SoscilQ, RoscilQ);
     
-    xHat(6:8, idx+1) = sinGenSysQ.C*filtStateQ(:,idx);
-    xHat(5:8, idx+1) = xHat(5:8, idx+1) ./ norm(xHat(5:8, idx+1));
+    xHat(5:7, idx+1) = sinGenSysQ.C*filtStateQ(:,idx);
+    xHat(4:7, idx+1) = xHat(4:7, idx+1) ./ norm(xHat(4:7, idx+1));
 end
 toc
 

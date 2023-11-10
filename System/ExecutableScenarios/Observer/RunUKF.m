@@ -16,14 +16,14 @@ load modelParams.mat
 
 %% Define Observation data
 TrialNum = 8;
-k = (1:(120*15))+120*20; % Observation data
+k = (1:(120*30))+120*20; % Observation data
 
 plotIO = 1; % Plot data?
 debugMode = true;
 
 % UKF tuning parameters
-alpha = 5e-3;
-beta = 2;
+alpha = 1e-4;
+beta = 2.2;
 kappa = 0;
 % lambda = alpha^2*(nx + kappa) - nx;
 % Wc_0 = Wm_0 + 1 - alpha^2 + beta;
@@ -35,17 +35,17 @@ varAcc = 1e-2; % Accelerometer noise variance
 varGyr = 1e-2;%1e-5; % Gyroscope noise variance
 
 % Uncertainty matrices
-Qukf = diag(min(w(1:3))./w(1:3)) * 1e-1;
-Rukf = blkdiag(eye(3).*varAcc, eye(3).*varGyr);
+Qukf = eye(3) * 1e-2;
+Rukf = eye(6)*1e-4; %blkdiag(eye(3).*varAcc, eye(3).*varGyr);
 
-DedriftEveryNSteps = 4;
-Ki = 0.05; % Integral correction term for lateral velocity
+DedriftEveryNSteps = 2;
+Ki = 0.0; % Integral correction term for lateral velocity
 
-P0 = 1e-4*eye(3);
+P0 = 1e-1*eye(3);
 
-UseFPE = false;
+UseFPE = true;
 UsePerfectInput = false;
-UsePhaseChangeDetection = false;
+UsePhaseChangeDetection = true;
 
 %% Unpack comparison data
 t = data(TrialNum).Time.TIME(k); % Time series
@@ -97,7 +97,6 @@ disp(strjoin(["The training data starts in" gaitCycle0(1)]))
 [k_strike, nStepPosAbsolute, avgBoundMin, avgBoundMax] ...
     = getPhaseChangeTime(LgrfMag, RgrfMag, bound, LgrfPos, RgrfPos, gaitCycle0); % Retrieve indices where the phase changes
 %     and the world coordinates of the foot placements
-% k_strike = k_strike -8;
 
 uMeas = AbsoluteStep2RelativeStep(xMeas, nStepPosAbsolute, COM, k_strike, gaitCycle0); % Translate world coordinates to body relative coords
 
@@ -161,7 +160,7 @@ Pcov(:,:,[1 k_strike(1)]) = cat(3, P0, P0);
 %%% Dedrifting
 stepsSinceDedrift = 0;
 DriftEstimate = [0; 0];
-xVelIntegral = 0;
+yVelIntegral = 0;
 
 %% Run UKF over time
 for idx = 1:k_strike(1)-1
@@ -228,7 +227,7 @@ for idx = k_strike(1):length(xMeas)-1
     
 
     Llpmem = circshift(Llpmem, -1); Llpmem(3) = Llp(idx);
-    if UsePhaseChangeDetection
+    if UsePhaseChangeDetection && idx-k_strike(1) > 15*120
         [impactIO, Llpmem] = footImpactDetector(Llpmem, HScooldown);
     else
         impactIO = any(idx == k_strike );
@@ -243,9 +242,9 @@ for idx = k_strike(1):length(xMeas)-1
         
         if UseFPE
             if gaitCycle(1) == "LSS" || gaitCycle(1) == "lSS"
-                [uHat(:, idx+1), ~, ~] = StepControllerFPE(xHat(:,idx), lmax, SLcorrR, SWcorrR);
+                [uHat(:, idx+1), ~, ~] = StepControllerFPE(xHat(:,idx), lmax, SLcorrR, 0.5*SWcorrR);
             else
-                [uHat(:, idx+1), ~, ~] = StepControllerFPE(xHat(:,idx), lmax, SLcorrL, SWcorrL);
+                [uHat(:, idx+1), ~, ~] = StepControllerFPE(xHat(:,idx), lmax, SLcorrL, 0.5*SWcorrL);
             end
         else
             uHat(:, idx+1) = uMeas(:, idx+1);
@@ -261,19 +260,22 @@ for idx = k_strike(1):length(xMeas)-1
         uHat(:, idx+1) = uMeas(:, idx+1);
     else 
         uHat(:, idx+1) = uHat(:, idx) - dt*xHat(1:3, idx+1);
+        if gaitCycle(1) == "LSS" || gaitCycle(1) == "lSS"
+            uHat(2, idx+1) = max(uHat(2, idx+1), 0);
+        else
+            uHat(2, idx+1) = min(uHat(2, idx+1), 0);
+        end
+
     end
 
 
     %%% Estimate and remove linear drifting from velocities
     % Counteract drift
     xHat(1, idx+1) = xHat(1, idx+1) - dt*DriftEstimate(1);
-    xHat(2, idx+1) = xHat(2, idx+1) - dt*DriftEstimate(2);
+%     xHat(2, idx+1) = xHat(2, idx+1) - dt*DriftEstimate(2);
 
-%     xVelIntegral = min(max(xVelIntegral + dt*xHat(3, idx+1), -0.15), 0.15);
-%     xHat(3, idx+1) = xHat(3, idx+1) - Ki*xVelIntegral;
-%     if idx > 120
-%         xHat(3, idx+1) = xHat(3, idx+1) - 0.05*mean(xHat(3, (idx-120):idx+1), "omitnan");
-%     end
+    yVelIntegral = min(max(yVelIntegral + dt*xHat(2, idx+1), -0.2), 0.2);
+    xHat(2, idx+1) = xHat(2, idx+1) - Ki*yVelIntegral;
 
     % Estimate drift
     if stepsSinceDedrift >= DedriftEveryNSteps && length(khat_strike) > DedriftEveryNSteps && impactIO
@@ -282,15 +284,15 @@ for idx = k_strike(1):length(xMeas)-1
         driftedVels = xHat(1:2,windowIDX) - mean(xHat(1:2,windowIDX), 2);
         DriftEstimate(1) = DriftEstimate(1) + tw'\driftedVels(1,:)';
         DriftEstimate(2) = DriftEstimate(2) + tw'\driftedVels(2,:)';
-        xHat(1, idx+1) = xHat(1, idx+1) - tw(end)*DriftEstimate(1) + x0(1) ;%- mean(xHat(1,windowIDX), 2);
-        xHat(2, idx+1) = xHat(2, idx+1) - tw(end)*DriftEstimate(2)         ;%- 0.5*mean(xHat(2,windowIDX), 2);
+        xHat(1, idx+1) = xHat(1, idx+1) - tw(end)*DriftEstimate(1) + x0(1)-0.35 - mean(xHat(1,windowIDX), 2);
+%         xHat(2, idx+1) = xHat(2, idx+1) - tw(end)*DriftEstimate(2)         - 0.5*mean(xHat(2,windowIDX), 2);
     elseif impactIO
         stepsSinceDedrift = stepsSinceDedrift+1;
     end
 
 
 
-        xHat(2, idx+1) = xMeas(2, idx+1);
+%         xHat([3], idx+1) = xMeas([3], idx+1);
 end
 runTime = toc
 realtimefactor = runTime/(t(end)-t(1))
@@ -307,12 +309,15 @@ hold on
 plot(tSim, xHat(1,1:idx), 'b--','DisplayName',"Obs - $\dot{\hat{x}}$")
 title("CoM velocity")
 legend('AutoUpdate', 'off','Interpreter','latex')
+xline(t(khat_strike), 'k')
 
 ax(counter) = subplot(3,2,3); counter = counter+1;
 plot(tSim, xMeas(2,1:idx), 'r-.','DisplayName',"Meas - $\dot{y}$")
 hold on
 plot(tSim, xHat(2,1:idx)', 'b-.','DisplayName',"Obs - $\dot{\hat{y}}$")
 legend('AutoUpdate', 'off','Interpreter','latex')
+xline(t(khat_strike), 'k')
+xline(t(k_strike(1) + 15*120), 'c--', LineWidth=2, Label="Start of PCD")
 
 ax(counter) = subplot(3,2,5); counter = counter+1;
 plot(tSim, xMeas(3,1:idx), 'r','DisplayName',"Meas - $\dot{z}$")
@@ -321,6 +326,7 @@ plot(tSim, xHat(3,1:idx), 'b','DisplayName',"Obs - $\dot{\hat{z}}$")
 xlabel("Time / s")
 ylabel("Velocity / (m/s)")
 legend('AutoUpdate', 'off','Interpreter','latex')
+xline(t(khat_strike), 'k')
 % ylim([-0.5 1.5])
 
 ax(counter) = subplot(2,2,2); counter = counter+1;
@@ -333,7 +339,8 @@ plot(tSim, xHat(4,1:idx), 'b','DisplayName',  "Obs - $\hat{q}_0$")
 plot(tSim, xHat(5,1:idx), 'b--','DisplayName',"Obs - $\hat{q}_1$")
 plot(tSim, xHat(6,1:idx), 'b-.','DisplayName',"Obs - $\hat{q}_2$")
 plot(tSim, xHat(7,1:idx), 'b:','DisplayName',"Obs - $\hat{q}_3$")
-legend('Interpreter','latex')
+legend('Interpreter','latex', AutoUpdate='off')
+xline(t(khat_strike), 'k')
 xlabel("Time / s")
 ylabel("Quaternion")
 title("Orientation")
@@ -349,7 +356,8 @@ plot(tSim, xHat(8,1:idx), 'b','DisplayName',  "Obs - $\dot{\hat{q}}_0$")
 plot(tSim, xHat(9,1:idx), 'b--','DisplayName',"Obs - $\dot{\hat{q}}_1$")
 plot(tSim, xHat(10,1:idx), 'b-.','DisplayName',"Obs - $\dot{\hat{q}}_2$")
 plot(tSim, xHat(11,1:idx), 'b:','DisplayName', "Obs - $\dot{\hat{q}}_3$")
-legend('Interpreter','latex')
+legend('Interpreter','latex', AutoUpdate='off')
+xline(t(khat_strike), 'k')
 xlabel("Time / s")
 title("Orientation derivative")
 % ylim([-2 2])
@@ -359,7 +367,7 @@ sgtitle("Observed state")
 
 figure()
 counter = 1;
-ax(counter) = subplot(2,2,counter); counter = counter+1;
+ax(counter) = subplot(3,2,1); counter = counter+1;
 hold on
 plot(t, y(1, :), 'b', DisplayName="a_xHat")
 plot(t, y(2, :), 'r', DisplayName="a_yHat")
@@ -369,7 +377,7 @@ xlabel("Time / s")
 ylabel("Acceleration / (m/s^2)")
 legend()
 
-ax(counter) = subplot(2,2,counter); counter = counter+1;
+ax(counter) = subplot(3,2,2); counter = counter+1;
 hold on
 plot(t, yHat(1, :), 'b', DisplayName="a_xHat")
 plot(t, yHat(2, :), 'r', DisplayName="a_yHat")
@@ -379,7 +387,7 @@ xlabel("Time / s")
 ylabel("Acceleration / (m/s^2)")
 legend()
 
-ax(counter) = subplot(2,2,counter); counter = counter+1;
+ax(counter) = subplot(3,2,3); counter = counter+1;
 hold on
 plot(t, y(4, :), 'b', DisplayName="gyr_xHat")
 plot(t, y(5, :), 'r', DisplayName="gyr_yHat")
@@ -388,7 +396,7 @@ xlabel("Time / s")
 ylabel("Angular velocity / (rad/s)")
 legend()
 
-ax(counter) = subplot(2,2,counter); counter = counter+1;
+ax(counter) = subplot(3,2,4); counter = counter+1;
 hold on
 plot(t, yHat(4, :), 'b', DisplayName="gyr_xHat")
 plot(t, yHat(5, :), 'r', DisplayName="gyr_yHat")
@@ -397,12 +405,21 @@ xlabel("Time / s")
 ylabel("Angular velocity / (rad/s)")
 legend()
 
-sgtitle("Measurements and estimated output")
-
 linkaxes(ax, 'x');
 linkaxes(ax(1:2), 'y');
 linkaxes(ax(3:4), 'y');
 xlim([tSim(1) tSim(end)])
+
+subplot(3,2,[5 6]); counter = counter+1;
+hold on
+scatter(uHat(1,10*120:end),uHat(2,10*120:end), DisplayName="Estimated feet positions")
+scatter(uMeas(1,10*120:end),uMeas(2,10*120:end), DisplayName="Measured feet positions")
+xlabel("B_x / m")
+ylabel("B_y / m")
+title("Inputs from 10s on")
+legend()
+
+sgtitle("Measuremed and estimated inputs and outputs")
 %% Animate
 % animate_strides_V2(t, xHat, gaitCycle0, k_gaitPhaseChange, u, modelParams)
 % animate_strides_V2(t, xMeas, gaitCycle0, k_gaitPhaseChange, u_real, modelParams)
