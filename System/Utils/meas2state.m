@@ -1,4 +1,4 @@
-function [x] = meas2state(LASI, RASI, SACR, COM, CAC)
+function [x, u] = meas2state(LASI, RASI, SACR, COM, CAC)
 % Body fixed frame
 nBz = CAC-COM; % Along the spine
 nBY = LASI-RASI; % Pelvis direction
@@ -22,8 +22,13 @@ bdCOM = nan(size(ndCOM));
 for p = 1:length(ndCOM)
     bdCOM(:,p) = squeeze(nRb(:,:,p))'*ndCOM(:,p);
 end
+
 dnqb = (nqb(:, 3:end) - nqb(:, 1:end-2)).*60;
+ddnqb = (dnqb(:, 3:end) - dnqb(:, 1:end-2)).*60;
 
 % Compile
-x = [bdCOM; nqb(:, 2:end-1); dnqb];
+x = bdCOM(:,2:end-1); 
+u{2} = nqb(:, 3:end-2); 
+u{3} = dnqb(:,2:end-1); 
+u{4} = ddnqb;
 end
