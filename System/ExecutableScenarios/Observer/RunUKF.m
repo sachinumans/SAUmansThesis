@@ -32,17 +32,18 @@ kappa = 0;
 % Define IMU position
 sens_hRatio = 0.1; % ratio from 0 = CoM height to 1 = between shoulders
 
-varAcc = 1e-2; % Accelerometer noise variance
-varGyr = 1e-2;%1e-5; % Gyroscope noise variance
+varAcc = 1e-4; % Accelerometer noise variance
+varGyr = 1e-4;%1e-5; % Gyroscope noise variance
 
 % Uncertainty matrices
-Qukf = eye(3) * 1e-2;
-Rukf = eye(6)*1e-4; %blkdiag(eye(3).*varAcc, eye(3).*varGyr);
+Qukf = eye(3) * 1e-1;
+Rukf = eye(6) * 1e-3; %blkdiag(eye(3).*varAcc, eye(3).*varGyr);
 
 DedriftEveryNSteps = 2;
-Ki = 0.0; % Integral correction term for lateral velocity
+Ki_x = 0.1; % Integral correction term for sagittal velocity
+Ki_y = 0.01; % Integral correction term for lateral velocity
 
-P0 = 1e-1*eye(3);
+P0 = 1e-2*eye(3);
 
 UseFPE = true;
 UsePerfectInput = false;
@@ -83,28 +84,26 @@ LLML(3, :) = LLML(3, :) - min(LLML(3, :)); % Correct for markerheight
 RLML(3, :) = RLML(3, :) - min(RLML(3, :));
 
 % Translate optical markers to state trajectories
-xMeas = meas2state(LASI, RASI, SACR, COM, CAC);
-% State:      x(1)   : CoM height in frame N
-%             x(2:4) : CoM velocity in frame B
-%             x(5:8) : Rotation quaternion from B to N
-%             x(9:12): Rotation quaternion derivative
+[xMeas, uMeas] = meas2state(LASI, RASI, SACR, COM, CAC);
+% State:      x(1:3) : CoM velocity in frame B
+
 % Determine initial state
 initGRFmagL = norm(LgrfVec(:, 1));
 initGRFmagR = norm(RgrfVec(:, 1));
 
 gaitCycle0 = getGaitPhase(initGRFmagL, initGRFmagR, bound);
-disp(strjoin(["The training data starts in" gaitCycle0(1)]))
+disp(strjoin(["The observation data starts in" gaitCycle0(1)]))
 
 [k_strike, nStepPosAbsolute, avgBoundMin, avgBoundMax] ...
     = getPhaseChangeTime(LgrfMag, RgrfMag, bound, LgrfPos, RgrfPos, gaitCycle0); % Retrieve indices where the phase changes
 %     and the world coordinates of the foot placements
 
-uMeas = AbsoluteStep2RelativeStep(xMeas, nStepPosAbsolute, COM, k_strike, gaitCycle0); % Translate world coordinates to body relative coords
+uMeas{1} = AbsoluteStep2RelativeStep(xMeas, uMeas{2}, nStepPosAbsolute, COM, k_strike, gaitCycle0); % Translate world coordinates to body relative coords
 
 %% Collect measurements
 bh = mean(vecnorm(COM - CAC, 2, 1)); % Approximate torso height
 bS = [-0.07; 0; sens_hRatio*bh]; % Body relative sensor position
-bS = [0; 0; 0]; % Body relative sensor position
+% bS = [0; 0; 0]; % Body relative sensor position
 
 y = nan(6,length(k));
 
@@ -116,29 +115,28 @@ end
 k = k(3:end-2);
 t = t(3:end-2);
 y = y(:, 3:end-2);
-xMeas = xMeas(:, 2:end-1);
 
 yHat = nan(6,length(y));
 
 % Detrend acceleration measurements
-y(1:3,:) = y(1:3,:) - mean(y(1:3,:), 2) + [0;0;-9.81];
+% y(1:3,:) = y(1:3,:) - mean(y(1:3,:), 2) + [0;0;-9.81];
 
 
 %% Initialise
+%%% CoM variables
 x0 = xMeas(:,[1 k_strike(1)]);
-u0 = uMeas(:,[1 k_strike(1)]);
+u0 = uMeas{1}(:,[1 k_strike(1)]);
 
-x0(4:11) = [1; zeros(7,1)];
-
-xHat = nan(11, length(xMeas));
-uHat = nan(3, length(xMeas));
+xHat = nan(3, length(xMeas));
+bFHat = nan(3, length(xMeas));
 
 Pcov = nan(3,3,length(xMeas));
 xHat(:, [1 k_strike(1)]) = x0;
-uHat(:, [1 k_strike(1)]) = u0;
+bFHat(:, [1 k_strike(1)]) = u0;
 Pcov(:,:,[1 k_strike(1)]) = cat(3, P0, P0);
 
-%%% CoM variables
+gaitCycle = gaitCycle0;
+
 khat_strike = [];
 
 Llp = zeros(1, length(xMeas));
@@ -149,21 +147,13 @@ PCD_filtState = nan(length(PhChDect_genSys.A), 1);
 PCD_xhat_kkm = zeros(length(PhChDect_genSys.A), 1);
 PCD_P_kkm = 1e1 * eye(length(PhChDect_genSys.A));
 
-filtStateQ = nan(length(sinGenSysQ.A), length(xMeas));
-xhat_kkmQ = zeros(length(sinGenSysQ.A), 1);
-P_kkmQ = 1e1 * eye(length(sinGenSysQ.A));
+t_thisStep = 0;
 
-filtStateDQ = nan(length(sinGenSysDQ.A), length(xMeas));
-xhat_kkmDQ = zeros(length(sinGenSysDQ.A), 1);
-P_kkmDQ = 1e1 * eye(length(sinGenSysDQ.A));
-
-x0(4:11) = [1; zeros(7,1)];
-xHat = nan(11, length(xMeas));
 %%% Orientation variables
 filtState = nan(length(sys_oscil.A), length(xMeas), 3);
 xhat_kkm = zeros(length(sys_oscil.A), 3);
 P_kkm = nan(length(sys_oscil.A), length(sys_oscil.A), 3);
-for i2 = 1:3; P_kkm(:,:, i2) = 1e-3 * eye(length(sys_oscil.A)); end
+for i2 = 1:3; P_kkm(:,:, i2) = 1e-1 * eye(length(sys_oscil.A)); end
 
 qHat =   nan(4, length(xMeas));
 dqHat =  nan(4, length(xMeas));
@@ -175,6 +165,7 @@ ddqHat(:,1) = [0;0;0;0];
 %%% Dedrifting
 stepsSinceDedrift = 0;
 DriftEstimate = [0; 0];
+xVelIntegral = 0;
 yVelIntegral = 0;
 
 %% Run UKF over time
@@ -230,21 +221,21 @@ for idx = k_strike(1):length(xMeas)-1
         , sys_oscil.A, sys_oscil.B, sys_oscil.C, sys_oscil.D, 5e-2*Qoscil, Soscil, Roscil);
     ddqHat(:, idx+1) = sys_oscil.C*filtState(:,idx, 3);
 
-    xHat(4:11,idx+1) = [qHat(:, idx+1); dqHat(:, idx+1)];
-
     %%% Estimate CoM states
+    uk = {bFHat(:,idx), qHat(:,idx), dqHat(:,idx), ddqHat(:,idx)};
+
     % UKF
-    [m_mink,P_mink] = UKF_I_Prediction(@(t, x, u) x(1:3) + dt*EoM_model(t_thisStep, x, u, gaitCycle(1), pOpt),...
-        xHat(:,idx), uHat(:, idx), Pcov(:,:,idx), Qukf, alpha, beta, kappa, 3);
-    m_mink = [m_mink; xHat(4:11,idx)];
+    [m_mink,P_mink] = UKF_I_Prediction(@(t, x, u) x + dt*EoM_model(t_thisStep, x, u, gaitCycle(1), pOpt),...
+        xHat(:,idx), uk, Pcov(:,:,idx), Qukf, alpha, beta, kappa);
+    P_mink = real(P_mink);
 
     [xHat(1:3,idx+1), Pcov(:,:,idx+1)] = UKF_I_Update(y(:,idx), ...
-        @(t, x, u) meas_model(t_thisStep, x, u, ddqHat(:, idx), bS, gaitCycle(1), pOpt), ...
-        m_mink, uHat(:, idx), P_mink, Rukf, alpha, beta, kappa, 3);
+        @(t, x, u) meas_model(t_thisStep, x, u, bS, gaitCycle(1), pOpt), ...
+        m_mink, uk, P_mink, Rukf, alpha, beta, kappa);
 
 
     % Estimated output
-    yHat(:,idx) = meas_model(t_thisStep, xHat(:,idx), uHat(:, idx), ddqHat(:, idx), bS, gaitCycle(1), pOpt);
+    yHat(:,idx) = meas_model(t_thisStep, xHat(:,idx), uk, bS, gaitCycle(1), pOpt);
 
     %%% Gait Phase Change Detection
     Lws = circshift(Lws, -1); Lws(end) = xHat(2,idx+1);
@@ -266,18 +257,25 @@ for idx = k_strike(1):length(xMeas)-1
         khat_strike = [khat_strike idx];
         HScooldown = 40;
         
+%         if length(khat_strike) >1
+%             xHat(2,[idx idx+1]) = xHat(2,[idx idx+1]) - mean(xHat(2,khat_strike(end-1):khat_strike(end)));
+%         end
+        
         if UseFPE
             if gaitCycle(1) == "LSS" || gaitCycle(1) == "lSS"
-                [uHat(:, idx+1), ~, ~] = StepControllerFPE(xHat(:,idx), lmax, SLcorrR, 1*SWcorrR);
+                [bFHat(:, idx+1), ~, ~] = StepControllerFPE(xHat(:,idx), lmax, SLcorrR+0.0, 0.7*SWcorrR);
             else
-                [uHat(:, idx+1), ~, ~] = StepControllerFPE(xHat(:,idx), lmax, SLcorrL, 1*SWcorrL);
+                [bFHat(:, idx+1), ~, ~] = StepControllerFPE(xHat(:,idx), lmax, SLcorrL+0.0, 0.7*SWcorrL);
             end
         else
-            uHat(:, idx+1) = uMeas(:, idx+1);
+            bFHat(:, idx+1) = uMeas{1}(:, idx+1);
         end
 
 %         xHat(1, idx+1) = x0(1);
         xHat(3,idx+1) = 0;
+        Pcov(3,:,idx+1) = [0 0 1e-2];
+        Pcov(:,3,idx+1) = [0 0 1e-2].';
+        Pcov(:,:,idx+1) = P0;
         t_thisStep = 0;
         
 %         Pcov(3,3,idx+1) = P0(3, 3);
@@ -285,15 +283,15 @@ for idx = k_strike(1):length(xMeas)-1
 
         gaitCycle = circshift(gaitCycle, -1);
     elseif UsePerfectInput
-        uHat(:, idx+1) = uMeas(:, idx+1);
+        bFHat(:, idx+1) = uMeas(:, idx+1);
         t_thisStep = t_thisStep + dt;
     else 
-        omeg_BN = 2*quat2matr(qHat(:,idx))*dqHat(:,idx);
-        uHat(:, idx+1) = uHat(:, idx) + dt*(-xHat(1:3, idx+1) + cross(omeg_BN(2:4), uHat(:, idx)));
+        omeg_BN = 2*quat2matr(qHat(:,idx)).'*dqHat(:,idx);
+        bFHat(:, idx+1) = bFHat(:, idx) + dt*(-xHat(1:3, idx+1) + cross(omeg_BN(2:4), bFHat(:, idx)));
         if gaitCycle(1) == "LSS" || gaitCycle(1) == "lSS"
-            uHat(2, idx+1) = max(uHat(2, idx+1), 0);
+            bFHat(2, idx+1) = max(bFHat(2, idx+1), 0);
         else
-            uHat(2, idx+1) = min(uHat(2, idx+1), 0);
+            bFHat(2, idx+1) = min(bFHat(2, idx+1), 0);
         end
         t_thisStep = t_thisStep + dt;
     end
@@ -304,8 +302,10 @@ for idx = k_strike(1):length(xMeas)-1
 %     xHat(1, idx+1) = xHat(1, idx+1) - dt*DriftEstimate(1);
 % %     xHat(2, idx+1) = xHat(2, idx+1) - dt*DriftEstimate(2);
 % 
-% %     yVelIntegral = min(max(yVelIntegral + dt*xHat(2, idx+1), -0.2), 0.2);
-% %     xHat(2, idx+1) = xHat(2, idx+1) - Ki*yVelIntegral;
+    xVelIntegral = min(max(xVelIntegral + dt*(xHat(1, idx+1) - 1.1), -0.15), 0.15);
+    xHat(1, idx+1) = xHat(1, idx+1) - Ki_x*xVelIntegral;
+    yVelIntegral = min(max(yVelIntegral + dt*xHat(2, idx+1), -0.15), 0.15);
+    xHat(2, idx+1) = xHat(2, idx+1) - Ki_y*yVelIntegral;
 % 
 %     % Estimate drift
 %     if stepsSinceDedrift >= DedriftEveryNSteps && length(khat_strike) > DedriftEveryNSteps && impactIO
@@ -322,7 +322,7 @@ for idx = k_strike(1):length(xMeas)-1
 
 
 
-        xHat([2], idx+1) = xMeas([2], idx+1);
+%         xHat([2], idx+1) = xMeas([2], idx+1);
 end
 runTime = toc
 realtimefactor = runTime/(t(end)-t(1))
@@ -340,6 +340,7 @@ plot(tSim, xHat(1,1:idx), 'b--','DisplayName',"Obs - $\dot{\hat{x}}$")
 title("CoM velocity")
 legend('AutoUpdate', 'off','Interpreter','latex')
 xline(t(khat_strike), 'k')
+ylabel("Velocity / (m/s)")
 
 ax(counter) = subplot(3,1,2); counter = counter+1;
 plot(tSim, xMeas(2,1:idx), 'r-.','DisplayName',"Meas - $\dot{y}$")
@@ -350,6 +351,7 @@ xline(t(khat_strike), 'k')
 if UsePhaseChangeDetection
     xline(t(k_strike(1) + 15*120), 'c--', LineWidth=2, Label="Start of PCD")
 end
+ylabel("Velocity / (m/s)")
 
 ax(counter) = subplot(3,1,3); counter = counter+1;
 plot(tSim, xMeas(3,1:idx), 'r','DisplayName',"Meas - $\dot{z}$")
@@ -361,29 +363,30 @@ legend('AutoUpdate', 'off','Interpreter','latex')
 xline(t(khat_strike), 'k')
 % ylim([-0.5 1.5])
 
+sgtitle("Estimated states")
 
 figure(WindowState="maximized");
 ctr = 1;
 for i = 1:4
     ax(counter) = subplot(4, 3, ctr); ctr = ctr+1; counter = counter+1;
     plot(t, qHat(i, :), 'b', DisplayName="Estimate"); hold on
-    plot(t, xMeas(i+3, :), 'r', DisplayName="Measurement")
+    plot(t, uMeas{2}(i, :), 'r', DisplayName="Measurement")
     title(['q_' num2str(i)])
 
     ax(counter) = subplot(4, 3, ctr); ctr = ctr+1; counter = counter+1;
     plot(t, dqHat(i, :), 'b', DisplayName="Estimate"); hold on
-    plot(t, xMeas(i+7, :), 'r', DisplayName="Measurement")
+    plot(t, uMeas{3}(i, :), 'r', DisplayName="Measurement")
     title(['dq_' num2str(i)])
 
     ax(counter) = subplot(4, 3, ctr); ctr = ctr+1; counter = counter+1;
     plot(t, ddqHat(i, :), 'b', DisplayName="Estimate"); hold on
-    plot(t(2:end-1), (xMeas(i+7, 3:end)-xMeas(i+7, 1:end-2)).*60, 'r', DisplayName="Measurement")
+    plot(t, uMeas{4}(i, :), 'r', DisplayName="Measurement")
     title(['ddq_' num2str(i)])
 end
 legend()
 
 linkaxes(ax, 'x');
-sgtitle("Observed state")
+sgtitle("Estimated orientation")
 
 figure()
 counter = 1;
@@ -392,7 +395,7 @@ hold on
 plot(t, y(1, :), 'b', DisplayName="a_xHat")
 plot(t, y(2, :), 'r', DisplayName="a_yHat")
 plot(t, y(3, :), 'm', DisplayName="a_zHat")
-title("Measurement")
+title("Measured output")
 xlabel("Time / s")
 ylabel("Acceleration / (m/s^2)")
 legend()
@@ -432,14 +435,14 @@ xlim([tSim(1) tSim(end)])
 
 subplot(3,2,[5 6]); counter = counter+1;
 hold on
-scatter(uHat(1,10*120:end),uHat(2,10*120:end), DisplayName="Estimated feet positions")
-scatter(uMeas(1,10*120:end),uMeas(2,10*120:end), DisplayName="Measured feet positions")
+scatter(bFHat(1,10*120:end),bFHat(2,10*120:end), DisplayName="Estimated feet positions")
+scatter(uMeas{1}(1,10*120:end),uMeas{1}(2,10*120:end), DisplayName="Measured feet positions")
 xlabel("B_x / m")
 ylabel("B_y / m")
 title("Inputs from 10s on")
 legend()
 
-sgtitle("Measuremed and estimated inputs and outputs")
+sgtitle("Measured and estimated inputs and outputs")
 %% Animate
 % animate_strides_V2(t, xHat, gaitCycle0, k_gaitPhaseChange, u, modelParams)
 % animate_strides_V2(t, xMeas, gaitCycle0, k_gaitPhaseChange, u_real, modelParams)
@@ -560,14 +563,14 @@ avgBoundMin = [avgBoundMin min(FPnew_set(1:2, :), [], 2)];
 avgBoundMax = [avgBoundMax max(FPnew_set(1:2, :), [], 2)];
 end
 
-function uMeas = AbsoluteStep2RelativeStep(xMeas, nStepPosAbsolute, COM, k_strike, gaitCycle)
+function uMeas = AbsoluteStep2RelativeStep(xMeas, nqb, nStepPosAbsolute, COM, k_strike, gaitCycle)
 timeWithInput = k_strike(1):length(xMeas);
 
 uMeas = nan(3, length(xMeas));
 
 stepCounter = 0;
 for k = timeWithInput
-    nRb = quat2R(xMeas(4:7, k)); % Rotate absolute to body fixed
+    nRb = quat2R(nqb(:,k)); % Rotate absolute to body fixed
     if any(k == k_strike)
         stepCounter = stepCounter +1;
     end
