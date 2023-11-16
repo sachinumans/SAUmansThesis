@@ -150,7 +150,7 @@ end
 q = 0.20; r = 4; f0 = 0.7; PCD_ws = 128*3;
 [PhChDect_genSys, PCD_Q, PCD_S, PCD_R] = getPhChDectSys(q, r, f0);
 
-if false %plotIO
+if true %plotIO
     plotPhaseChangeDetection(xMeas, k_strike...
     , realStepL, SWcorrL, SLcorrL, realStepR, SWcorrR, SLcorrR, lmax...
         , PhChDect_genSys, PCD_Q, PCD_S, PCD_R, PCD_ws, gaitCycle0)
@@ -583,7 +583,7 @@ for idx = k_strike
 end
 
 SWcorr = mean(realStep(2,:) ./ controlStep(2,:));
-SLcorr = mean(realStep(1,:) -  controlStep(1,:));
+SLcorr = mean(realStep(1,:) - controlStep(1,:));
 end
 
 function [PhChDectFilter, Q, S, R] = getPhChDectSys(q, r, f0)

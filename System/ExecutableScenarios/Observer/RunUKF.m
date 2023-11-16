@@ -16,8 +16,8 @@ end
 load modelParams.mat
 
 %% Define Observation data
-TrialNum = 8;
-k = (1:(120*30))+120*20; % Observation data
+TrialNum = 11;
+k = (1:(120*30))+120*24; % Observation data
 
 plotIO = 1; % Plot data?
 debugMode = true;
@@ -263,24 +263,23 @@ for idx = k_strike(1):length(xMeas)-1
         
         if UseFPE
             if gaitCycle(1) == "LSS" || gaitCycle(1) == "lSS"
-                [bFHat(:, idx+1), ~, ~] = StepControllerFPE(xHat(:,idx), lmax, SLcorrR+0.0, 0.7*SWcorrR);
+                [bFHat(:, idx+1), ~, ~] = StepControllerFPE(xHat(:,idx), lmax, SLcorrR+0.0, 1*SWcorrR);
             else
-                [bFHat(:, idx+1), ~, ~] = StepControllerFPE(xHat(:,idx), lmax, SLcorrL+0.0, 0.7*SWcorrL);
+                [bFHat(:, idx+1), ~, ~] = StepControllerFPE(xHat(:,idx), lmax, SLcorrL+0.0, 1.2*SWcorrL);
             end
         else
             bFHat(:, idx+1) = uMeas{1}(:, idx+1);
         end
 
-%         xHat(1, idx+1) = x0(1);
         xHat(3,idx+1) = 0;
-        Pcov(3,:,idx+1) = [0 0 1e-2];
-        Pcov(:,3,idx+1) = [0 0 1e-2].';
-        Pcov(:,:,idx+1) = P0;
+%         Pcov(3,3,idx+1) = P0(3, 3); Turns indefinite
+%         Pcov(3,:,idx+1) = [0 0 1e-2]; Pcov(:,3,idx+1) = [0 0 1e-2].'; Turns indefinite
+%         Pcov(:,:,idx+1) = P0; Unfounded
+%         Pcov(:,:,idx+1) = diag(eig(Pcov(:,:,idx+1))); Just wrong
+        Pcov(:,:,idx+1) = resetCovariance(xHat(:,idx+1) - [norm(treadVel);0;0], [0.5 0.5 0.5], [1e-10 1e0]); % method 1
+%         Pcov(:,:,idx+1) = resetCovariance(Pcov(:,:,idx+1)); % method 2
         t_thisStep = 0;
         
-%         Pcov(3,3,idx+1) = P0(3, 3);
-%         Pcov(:,:,idx+1) = forceRealPosDef(Pcov(:,:,idx+1));
-
         gaitCycle = circshift(gaitCycle, -1);
     elseif UsePerfectInput
         bFHat(:, idx+1) = uMeas(:, idx+1);
@@ -302,7 +301,7 @@ for idx = k_strike(1):length(xMeas)-1
 %     xHat(1, idx+1) = xHat(1, idx+1) - dt*DriftEstimate(1);
 % %     xHat(2, idx+1) = xHat(2, idx+1) - dt*DriftEstimate(2);
 % 
-    xVelIntegral = min(max(xVelIntegral + dt*(xHat(1, idx+1) - 1.1), -0.15), 0.15);
+    xVelIntegral = min(max(xVelIntegral + dt*(xHat(1, idx+1) - norm(treadVel)), -0.15), 0.15);
     xHat(1, idx+1) = xHat(1, idx+1) - Ki_x*xVelIntegral;
     yVelIntegral = min(max(yVelIntegral + dt*xHat(2, idx+1), -0.15), 0.15);
     xHat(2, idx+1) = xHat(2, idx+1) - Ki_y*yVelIntegral;
@@ -576,6 +575,41 @@ for k = timeWithInput
     end
     uMeas(:,k) = nRb.' * (nStepPosAbsolute(:,stepCounter) - COM(:,k));
 end
+end
+
+function Pnew = resetCovariance(x, stateMax, covRange)
+% Method 1: Linearly scaled reset | Pnew = resetCovariance(x, stateMax, covRange)
+Pnew = zeros(length(x));
+for idx = 1:length(x)
+    Pnew(idx,idx) = max(min(abs(x(idx))/stateMax(idx), 1), -1) * (covRange(2)-covRange(1)) + covRange(1);
+end
+
+% % Method 2: Collapse resetted dimension | Pnew = resetCovariance(Pold)
+% % Collapse most vertical eigenvector
+% [V,D] = eig(Pold);
+% d = diag(D);
+% [~, imax] = max(abs(V(3,:)));
+% maxval = V(3,imax);
+% V(3,:) = [0 0 0];
+% V(:,imax) = [0; 0; sign(maxval)];
+% d(imax) = 1e-5;
+% 
+% % Resquare remaining eigenvectors
+% idx = 1:3; idx = idx(idx~=imax);
+% [~, baseVecIdx] = max(d(idx));
+% V(:,idx(idx~=idx(baseVecIdx))) = V(:,idx(idx~=idx(baseVecIdx))) ...
+%     - dot(V(:,idx(idx~=idx(baseVecIdx))), V(:,idx(baseVecIdx)))/norm(V(:,idx(baseVecIdx)))^2 * V(:,idx(baseVecIdx));
+% 
+% % % Make the eigenvalues numerically closer
+% % d(d<1e-5) = 1e-3;
+% 
+% Pnew = (V*diag(d))/V;
+% Pnew = (Pnew + Pnew.')./2;
+% 
+% if any(eig(Pnew) <= 0)
+%     error("Failed to create positive definite resetted covariance matrix")
+% end
+
 end
 
 function r = plotIMUmeas(t, y, ny)
