@@ -28,7 +28,7 @@ PerturbAfterNSteps = 26;
 
 %% Observer settings
 % UKF tuning parameters
-alpha = 5e-4;
+alpha = 5e-2;
 beta = 2.5;
 kappa = 0;
 % lambda = alpha^2*(nx + kappa) - nx;
@@ -41,14 +41,14 @@ varAcc = 1e-8; % Accelerometer noise variance
 varGyr = 1e-8;%1e-5; % Gyroscope noise variance
 
 % Uncertainty matrices
-Qukf = eye(3) * 1e2;
-Rukf = eye(6) * 1e0; %blkdiag(eye(3).*varAcc, eye(3).*varGyr);
+Qukf = blkdiag(eye(3) * 1e-1, eye(2) * 1e2);
+Rukf = eye(6) * 1e-1; %blkdiag(eye(3).*varAcc, eye(3).*varGyr);
 
 % DedriftEveryNSteps = 2;
-Ki_x = 5e-2; % Integral correction term for sagittal velocity
-Ki_y = 0;% for Rukf=1e3: 1e-3; % Integral correction term for lateral velocity
+Ki_x = 0e-2; % Integral correction term for sagittal velocity
+Ki_y = 0e-2;% for Rukf=1e3: 1e-3; % Integral correction term for lateral velocity
 
-P0 = 1e-0*eye(3);
+P0 = 1e-0*eye(5);
 
 UseFPE = true;
 UsePerfectInput = false;
@@ -90,7 +90,9 @@ RLML(3, :) = RLML(3, :) - min(RLML(3, :));
 
 % Translate optical markers to state trajectories
 [xMeas, uMeas] = meas2state(LASI, RASI, SACR, COM, CAC);
+xMeas = [xMeas; zeros(2, length(xMeas))];
 % State:      x(1:3) : CoM velocity in frame B
+%             x(4:5) : Extra X and Y forces on the CoM
 
 % Determine initial state
 initGRFmagL = norm(LgrfVec(:, 1));
@@ -131,10 +133,10 @@ yHat = nan(6,length(y));
 x0 = xMeas(:,[1 k_strike(1)]);
 u0 = uMeas{1}(:,[1 k_strike(1)]);
 
-xHat = nan(3, length(xMeas));
+xHat = nan(5, length(xMeas));
 bFHat = nan(3, length(xMeas));
 
-Pcov = nan(3,3,length(xMeas));
+Pcov = nan(length(x0),length(x0),length(xMeas));
 xHat(:, [1 k_strike(1)]) = x0;
 bFHat(:, [1 k_strike(1)]) = u0;
 Pcov(:,:,[1 k_strike(1)]) = cat(3, P0, P0);
@@ -167,8 +169,8 @@ dqHat(:,1) =  [0;0;0;0];
 ddqHat(:,1) = [0;0;0;0];
 
 %%% Dedrifting
-stepsSinceDedrift = 0;
-DriftEstimate = [0; 0];
+% stepsSinceDedrift = 0;
+% DriftEstimate = [0; 0];
 xVelIntegral = 0;
 yVelIntegral = 0;
 
@@ -238,12 +240,12 @@ for idx = k_strike(1):length(xMeas)-1
     uk = {bFHat(:,idx), qHat(:,idx), dqHat(:,idx), ddqHat(:,idx)};
 
     % UKF
-    [m_mink,P_mink] = UKF_I_Prediction(@(t, x, u) x + dt*EoM_model(t_thisStep, x, u, gaitCycle(1), pOpt),...
+    [m_mink,P_mink] = UKF_I_Prediction(@(t, x, u) x + dt*EoM_model_wForces(t_thisStep, x, u, gaitCycle(1), pOpt),...
         xHat(:,idx), uk, Pcov(:,:,idx), Qukf, alpha, beta, kappa);
     P_mink = real(P_mink);
 
-    [xHat(1:3,idx+1), Pcov(:,:,idx+1)] = UKF_I_Update(y(:,idx), ...
-        @(t, x, u) meas_model(t_thisStep, x, u, bS, gaitCycle(1), pOpt), ...
+    [xHat(:,idx+1), Pcov(:,:,idx+1)] = UKF_I_Update(y(:,idx), ...
+        @(t, x, u) meas_model_wForces(t_thisStep, x, u, bS, gaitCycle(1), pOpt), ...
         m_mink, uk, P_mink, Rukf, alpha, beta, kappa);
 
 
@@ -289,7 +291,7 @@ for idx = k_strike(1):length(xMeas)-1
 %         Pcov(3,:,idx+1) = [0 0 1e-2]; Pcov(:,3,idx+1) = [0 0 1e-2].'; Turns indefinite
 %         Pcov(:,:,idx+1) = P0; Unfounded
 %         Pcov(:,:,idx+1) = diag(eig(Pcov(:,:,idx+1))); Just wrong
-        Pcov(:,:,idx+1) = resetCovariance1(xHat(:,idx+1) - [norm(treadVel);0;0], [0.5 0.5 0.5], [1e-10 1e0]); % method 1
+        Pcov(:,:,idx+1) = resetCovariance1(xHat(:,idx+1) - [norm(treadVel);0;0 ;0;0], [1 1 1, 50 50], [1e-10 1e2]); % method 1
 %         Pcov(:,:,idx+1) = resetCovariance2(Pcov(:,:,idx+1)); % method 2
 %         Pcov(:,:,idx+1) = resetCovariance3(Pcov(:,:,idx+1)); % method 3
         t_thisStep = 0;
@@ -346,7 +348,7 @@ tSim = t(1:idx);
 figure(WindowState="maximized")
 counter = 1;
 
-ax(counter) = subplot(3,1,1); counter = counter+1;
+ax(counter) = subplot(4,1,1); counter = counter+1;
 plot(tSim, xMeas(1,1:idx), 'r--','DisplayName',"Meas - $\dot{x}$")
 hold on
 plot(tSim, xHat(1,1:idx), 'b--','DisplayName',"Est - $\dot{\hat{x}}$")
@@ -357,7 +359,7 @@ xline(t(khat_strike), 'k')
 ylabel("Velocity / (m/s)")
 grid on
 
-ax(counter) = subplot(3,1,2); counter = counter+1;
+ax(counter) = subplot(4,1,2); counter = counter+1;
 plot(tSim, xMeas(2,1:idx), 'r-.','DisplayName',"Meas - $\dot{y}$")
 hold on
 plot(tSim, xHat(2,1:idx)', 'b-.','DisplayName',"Est - $\dot{\hat{y}}$")
@@ -373,7 +375,7 @@ end
 ylabel("Velocity / (m/s)")
 grid on
 
-ax(counter) = subplot(3,1,3); counter = counter+1;
+ax(counter) = subplot(4,1,3); counter = counter+1;
 plot(tSim, xMeas(3,1:idx), 'r','DisplayName',"Meas - $\dot{z}$")
 hold on
 plot(tSim, xHat(3,1:idx), 'b','DisplayName',"Est - $\dot{\hat{z}}$")
@@ -384,6 +386,13 @@ legend('AutoUpdate', 'off','Interpreter','latex')
 xline(t(khat_strike), 'k')
 grid on
 % ylim([-0.5 1.5])
+
+ax(counter) = subplot(4,1,4); counter = counter+1;
+plot(tSim, xHat(4,1:idx), 'm','DisplayName',"$F_x$")
+hold on
+plot(tSim, xHat(5,1:idx), 'c','DisplayName',"$F_y$")
+grid on
+legend('AutoUpdate', 'off','Interpreter','latex')
 
 sgtitle("Estimated states")
 
@@ -467,6 +476,7 @@ legend()
 sgtitle("Measured and estimated inputs and outputs")
 
 %%
+return
 save PerturbedRun.mat y xHat
 DebugObserver
 %% Animate

@@ -1,7 +1,7 @@
 function [dx, bGRF, bF_len, dbF_len] = EoM_model(t, x, u, phase, pars)
 %EOM_MODEL Equations of Motion in state space form for the human walking model
 %     t [1] Time since last heel strike
-%     x [3 1] State
+%     x [5 1] State
 %     u {[3 1], [4 1], [4 1], [4 1]} Inputs, Foot position in body fixed
 %       frame, orientation quaternion, 1st quaternion derivative, 2nd quaternion derivative
 %     phase in {"LSS", "RSS"}
@@ -41,9 +41,9 @@ nZ = m*[0;0;-9.81];
 nRb = quat2R(NqB);
 bZ = nRb.'*nZ;
 
-ddbC = (bZ + bGRF)/m;
+ddbC = (bZ + bGRF + [x(4:5);0])/m;
 
-dx = ddbC;
+dx = [ddbC; 0;0];
 
 if any(isnan(dx)); error("Returned NaN acceleration"); end
 
