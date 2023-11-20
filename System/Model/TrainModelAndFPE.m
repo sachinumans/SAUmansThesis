@@ -97,7 +97,7 @@ LgrfVecApp = zeros(size(LgrfVec));
 RgrfVecApp = zeros(size(RgrfVec));
 for i = 3:length(LgrfVec)-4
     if any(i==k_strike-1)
-        gaitCycle = circshift(gaitCycle, -1);
+        gaitCycle = circshift(gaitCycle, -2);
     end
 
     if gaitCycle(1) == "LSS" || gaitCycle(1) == "lSS"
@@ -288,7 +288,7 @@ for idx = k_strike
             xModelTrajRSS = cat(3, xModelTrajRSS, xModel(:,idx+wBef:idx+wAft));
         otherwise, error("Invalid phase");
     end
-    gaitCycle = circshift(gaitCycle, -1);
+    gaitCycle = circshift(gaitCycle, -2);
 end
 
 resetFig = figure(WindowState="maximized");
@@ -368,15 +368,15 @@ end
 %         ▔▔▔▔▔▔╲▂▕▂▂▂
 
 function gaitCycle = getGaitPhase(initGRFmagL, initGRFmagR, bound)
-gaitCycle = ["lSS", "rSS"];
+gaitCycle = ["lDS", "lSS", "rDS", "rSS"];
 % Left Single Stance, Right Single Stance
 
 if initGRFmagL>bound && initGRFmagR>bound
     error("Cannot initialise in double stance, unable to differentiate between left2right and right2left")
 elseif initGRFmagL < bound && initGRFmagR>bound % RSS
-    gaitCycle = circshift(gaitCycle, -1);
+    gaitCycle = circshift(gaitCycle, -3);
 elseif initGRFmagL>bound && initGRFmagR < bound % LSS
-    gaitCycle = circshift(gaitCycle, 0);
+    gaitCycle = circshift(gaitCycle, -1);
 end
 end
 
@@ -399,7 +399,7 @@ switch gaitCycle(1)
 end
 
 ki = ki+ ki_phaseDuration;
-gaitCycle = circshift(gaitCycle, -1); % Next phase
+gaitCycle = circshift(gaitCycle, -2); % Next phase
 
 while true
     k_strike = [k_strike ki-1]; % Heel strike happened previous timestep
@@ -420,12 +420,12 @@ while true
     end
 
     ki = ki+ ki_phaseDuration;
-    gaitCycle = circshift(gaitCycle, -1); % Next phase
+    gaitCycle = circshift(gaitCycle, -2); % Next phase
 end
 
 %%% Obtain foot placements
 gaitCycle = gaitCycle0;
-gaitCycle = circshift(gaitCycle, -1);
+gaitCycle = circshift(gaitCycle, -2);
 
 for idx = 2:length(k_strike)
     switch gaitCycle(1)
@@ -441,7 +441,7 @@ for idx = 2:length(k_strike)
     nStepPosAbsolute = [nStepPosAbsolute, [FPnew; 0]];
     avgBoundMin = [avgBoundMin min(FPnew_set(1:2, :), [], 2)];
     avgBoundMax = [avgBoundMax max(FPnew_set(1:2, :), [], 2)];
-    gaitCycle = circshift(gaitCycle, -1);
+    gaitCycle = circshift(gaitCycle, -2);
 end
 
 % Final phase
@@ -483,7 +483,7 @@ for idx = 1:length(uMeas{1})
     if isnan(l(idx)); continue; end
 
     if any(idx == k_strike(2:end))
-        gaitCycle = circshift(gaitCycle, -1);
+        gaitCycle = circshift(gaitCycle, -2);
         
         phaseIDX = startPhase:idx;
         switch gaitCycle(1)
@@ -717,6 +717,7 @@ end
 
 function [wxSqError, xModel, xMeas, bGRF, bL, dbL] = nonlinObjFunc_splitIntoPhases(p, xMeas, uMeas, gaitCycle, k_strike, w, dt)
 simTime = k_strike(1):length(xMeas);
+gaitCycle = circshift(gaitCycle, 1);
 
 xModel = nan(3, length(xMeas));
 bGRF = nan(3, length(xMeas));
@@ -726,7 +727,7 @@ timeWeight = zeros(1, length(xMeas));
 
 xModel(:,simTime(1)) = xMeas(:,simTime(1));
 xModel(3,simTime(1)) = 0;
-tModel = 0;
+kStride = 0;
 
 counterPhaseDuration = 1;
 for idx = simTime(2:end)
@@ -735,16 +736,19 @@ for idx = simTime(2:end)
         xModel(3,idx) = 0;
         gaitCycle = circshift(gaitCycle, -1);
         counterPhaseDuration = 1;
-        tModel = 0;
+        kStride = 0;
         continue
+    end
+    if kStride == 5
+        gaitCycle = circshift(gaitCycle, -1);        
     end
     uMeas{1}(:,idx) = uMeas{1}(:,idx) + dt*(xMeas(1:3, idx-1) - xModel(1:3, idx-1));
     uk = {uMeas{1}(:,idx), uMeas{2}(:,idx), uMeas{3}(:,idx), uMeas{4}(:,idx)};
-    [dx, bGRF(:, idx), bL(idx), dbL(idx)] = EoM_model(tModel, xModel(:,idx-1), uk, gaitCycle(1), p);
+    [dx, bGRF(:, idx), bL(idx), dbL(idx)] = EoM_model(0, xModel(:,idx-1), uk, gaitCycle(1), p);
     xModel(1:3,idx) = xModel(1:3,idx-1) + dt*dx; % Forward Euler CoM states
     timeWeight(idx) = counterPhaseDuration;
     counterPhaseDuration = counterPhaseDuration+1;
-    tModel = tModel+1/120;
+    kStride = kStride+1;
 end
 
 xModelErr = xModel(:,simTime);
@@ -767,7 +771,7 @@ f = figure(WindowState="maximized");
 i = 1;
 for k = k_strike
     xline(tMeas(k), 'k', gaitCycle(1))
-    gaitCycle = circshift(gaitCycle, -1);
+    gaitCycle = circshift(gaitCycle, -2);
 end
 ylim([-0.1 0.1])
 
@@ -940,7 +944,7 @@ for k = 1:Tn
         else
         [bFhat(:,k), ~, ~] = StepControllerFPE(xMeas(:,k), lmax, SLcorrL, SWcorrL);
         end
-        gaitCycle = circshift(gaitCycle, -1);
+        gaitCycle = circshift(gaitCycle, -2);
     end
 end
 
