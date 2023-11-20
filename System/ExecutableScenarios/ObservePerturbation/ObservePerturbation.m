@@ -15,40 +15,35 @@ if exist("data","var") ~= 1
 end
 load modelParams.mat
 
+% Define perturbation as measurement offset
+% yPush = [-5; 5; -9.81;0;0;0];
+yPush = [0; 0; 0;0;0;0];
+PerturbAfterNSteps = 40;
+
 %% Define Observation data
 TrialNum = 11;
-k = (1:(120*15))+120*24; % Observation data
+k = (1:(120*30))+120*24; % Observation data
 
 plotIO = 1; % Plot data?
 debugMode = true;
 
-% Define perturbation as measurement offset
-yPush = [-5; 5;0;0;0;0];
-PerturbAfterNSteps = 26;
+% EKF tuning parameters: Uncertainty matrices
+Qekf = eye(3) * 1e-1;
+Rekf = eye(6) * 1e-4; %blkdiag(eye(3).*varAcc, eye(3).*varGyr);
 
-%% Observer settings
-% UKF tuning parameters
-alpha = 5e-4;
-beta = 2.5;
-kappa = 0;
-% lambda = alpha^2*(nx + kappa) - nx;
-% Wc_0 = Wm_0 + 1 - alpha^2 + beta;
+P0 = 1e-2*eye(3);
 
 % Define IMU position
 sens_hRatio = 0.1; % ratio from 0 = CoM height to 1 = between shoulders
 
-varAcc = 1e-8; % Accelerometer noise variance
-varGyr = 1e-8;%1e-5; % Gyroscope noise variance
+varAcc = 1e-4; % Accelerometer noise variance
+varGyr = 1e-4;%1e-5; % Gyroscope noise variance
 
-% Uncertainty matrices
-Qukf = eye(3) * 1e2;
-Rukf = eye(6) * 1e0; %blkdiag(eye(3).*varAcc, eye(3).*varGyr);
-
+% Dedrifting
 % DedriftEveryNSteps = 2;
-Ki_x = 5e-2; % Integral correction term for sagittal velocity
-Ki_y = 0;% for Rukf=1e3: 1e-3; % Integral correction term for lateral velocity
+Ki_x = 1e-1; % Integral correction term for sagittal velocity
+Ki_y = 1e-3; % Integral correction term for lateral velocity
 
-P0 = 1e-0*eye(3);
 
 UseFPE = true;
 UsePerfectInput = false;
@@ -126,6 +121,7 @@ yHat = nan(6,length(y));
 % Detrend acceleration measurements
 % y(1:3,:) = y(1:3,:) - mean(y(1:3,:), 2) + [0;0;-9.81];
 
+
 %% Initialise
 %%% CoM variables
 x0 = xMeas(:,[1 k_strike(1)]);
@@ -151,7 +147,7 @@ PCD_filtState = nan(length(PhChDect_genSys.A), 1);
 PCD_xhat_kkm = zeros(length(PhChDect_genSys.A), 1);
 PCD_P_kkm = 1e1 * eye(length(PhChDect_genSys.A));
 
-t_thisStep = 0;
+k_thisStep = 0;
 
 %%% Orientation variables
 filtState = nan(length(sys_oscil.A), length(xMeas), 3);
@@ -172,14 +168,19 @@ DriftEstimate = [0; 0];
 xVelIntegral = 0;
 yVelIntegral = 0;
 
+%%% Perturbation
+StopStepping = false;
+
 %% Run UKF over time
+gaitCycle0 = circshift(gaitCycle0, 1);
+
 for idx = 1:k_strike(1)-1
     %%% Estimate orientation
     % Angular velocity
     dqNoisy = 0.5* quat2matr(qHat(:,idx)) *[0; y(4:6, idx)];
     [filtState(:,idx,2), ~] = KFmeasurementUpdate(dqNoisy, xhat_kkm(:,2), zeros(4,1), P_kkm(:,:, 2), sys_oscil.C, sys_oscil.D, Roscil);
     [xhat_kkm(:,2), P_kkm(:,:, 2)] = KFtimeUpdate(dqNoisy, xhat_kkm(:,2), zeros(4,1), P_kkm(:,:, 2)...
-        , sys_oscil.A, sys_oscil.B, sys_oscil.C, sys_oscil.D, Qoscil, Soscil, Roscil);
+        , sys_oscil.A, sys_oscil.B, sys_oscil.C, sys_oscil.D, 1e-1*Qoscil, Soscil, Roscil);
     dqHat(:, idx+1) = sys_oscil.C*filtState(:,idx, 2);
 
     % Angular orientation
@@ -187,7 +188,7 @@ for idx = 1:k_strike(1)-1
     qNoisy = qNoisy./norm(qNoisy);
     [filtState(:,idx,1), ~] = KFmeasurementUpdate(qNoisy-qSteady, xhat_kkm(:,1), zeros(4,1), P_kkm(:,:, 1), sys_oscil.C, sys_oscil.D, Roscil);
     [xhat_kkm(:,1), P_kkm(:,:, 1)] = KFtimeUpdate(qNoisy-qSteady, xhat_kkm(:,1), zeros(4,1), P_kkm(:,:, 1)...
-        , sys_oscil.A, sys_oscil.B, sys_oscil.C, sys_oscil.D, 5e2*Qoscil, Soscil, 1e-2*Roscil);
+        , sys_oscil.A, sys_oscil.B, sys_oscil.C, sys_oscil.D, 1e1*Qoscil, Soscil, Roscil);
     qHat(:, idx+1) = sys_oscil.C*filtState(:,idx, 1) + qSteady;
     qHat(:, idx+1) = qHat(:, idx+1)./norm(qHat(:, idx+1));
 
@@ -205,8 +206,12 @@ for idx = k_strike(1):length(xMeas)-1
     if length(khat_strike) >= PerturbAfterNSteps
         if length(khat_strike) == PerturbAfterNSteps
             PerturbationOnsetIdx = idx;
-        else
-            y(:,idx) = y(:,idx) + yPush;
+            StopSteppingIdx = idx;
+        elseif ~all(yPush==0)
+            y(yPush~=0,idx) = yPush(yPush~=0);% + y(:,idx);
+        elseif all(yPush==0)
+            StopStepping = true;
+            y(1:3,idx) = [0;0;-9.81];
         end
     end
 
@@ -215,7 +220,7 @@ for idx = k_strike(1):length(xMeas)-1
     dqNoisy = 0.5* quat2matr(qHat(:,idx)) *[0; y(4:6, idx)];
     [filtState(:,idx,2), ~] = KFmeasurementUpdate(dqNoisy, xhat_kkm(:,2), zeros(4,1), P_kkm(:,:, 2), sys_oscil.C, sys_oscil.D, Roscil);
     [xhat_kkm(:,2), P_kkm(:,:, 2)] = KFtimeUpdate(dqNoisy, xhat_kkm(:,2), zeros(4,1), P_kkm(:,:, 2)...
-        , sys_oscil.A, sys_oscil.B, sys_oscil.C, sys_oscil.D, Qoscil, Soscil, Roscil);
+        , sys_oscil.A, sys_oscil.B, sys_oscil.C, sys_oscil.D, 1e-1*Qoscil, Soscil, Roscil);
     dqHat(:, idx+1) = sys_oscil.C*filtState(:,idx, 2);
 
     % Angular orientation
@@ -223,7 +228,7 @@ for idx = k_strike(1):length(xMeas)-1
     qNoisy = qNoisy./norm(qNoisy);
     [filtState(:,idx,1), ~] = KFmeasurementUpdate(qNoisy-qSteady, xhat_kkm(:,1), zeros(4,1), P_kkm(:,:, 1), sys_oscil.C, sys_oscil.D, Roscil);
     [xhat_kkm(:,1), P_kkm(:,:, 1)] = KFtimeUpdate(qNoisy-qSteady, xhat_kkm(:,1), zeros(4,1), P_kkm(:,:, 1)...
-        , sys_oscil.A, sys_oscil.B, sys_oscil.C, sys_oscil.D, 5e2*Qoscil, Soscil, 1e-2*Roscil);
+        , sys_oscil.A, sys_oscil.B, sys_oscil.C, sys_oscil.D, 1e1*Qoscil, Soscil, Roscil);
     qHat(:, idx+1) = sys_oscil.C*filtState(:,idx, 1) + qSteady;
     qHat(:, idx+1) = qHat(:, idx+1)./norm(qHat(:, idx+1));
 
@@ -235,20 +240,41 @@ for idx = k_strike(1):length(xMeas)-1
     ddqHat(:, idx+1) = sys_oscil.C*filtState(:,idx, 3);
 
     %%% Estimate CoM states
-    uk = {bFHat(:,idx), qHat(:,idx), dqHat(:,idx), ddqHat(:,idx)};
+    uk = [bFHat(:,idx); qHat(:,idx); dqHat(:,idx); ddqHat(:,idx)];
 
     % UKF
-    [m_mink,P_mink] = UKF_I_Prediction(@(t, x, u) x + dt*EoM_model(t_thisStep, x, u, gaitCycle(1), pOpt),...
-        xHat(:,idx), uk, Pcov(:,:,idx), Qukf, alpha, beta, kappa);
-    P_mink = real(P_mink);
-
-    [xHat(1:3,idx+1), Pcov(:,:,idx+1)] = UKF_I_Update(y(:,idx), ...
-        @(t, x, u) meas_model(t_thisStep, x, u, bS, gaitCycle(1), pOpt), ...
-        m_mink, uk, P_mink, Rukf, alpha, beta, kappa);
-
+    switch gaitCycle(1)
+        case {"LDS"}
+            F_x = F_x_EoM_LDS(uk);
+            [m_mink,P_mink] = EKF_I_Prediction(@(x, u) sym_EoM_discrete_LDS(x, u), xHat(:,idx), uk, F_x, Pcov(:,:,idx), Qekf);
+            P_mink = real(P_mink);
+            H_x = H_x_EoM_LDS(uk);
+            [xHat(:,idx+1), Pcov(:,:,idx+1)] = EKF_I_Update(y(:,idx), @(x, u) sym_meas_model_LDS(x, u, bS), m_mink, uk, H_x, P_mink, Rekf);
+        case {"LSS", "lSS"}
+            F_x = F_x_EoM_LSS(uk);
+            [m_mink,P_mink] = EKF_I_Prediction(@(x, u) sym_EoM_discrete_LSS(x, u), xHat(:,idx), uk, F_x, Pcov(:,:,idx), Qekf);
+            P_mink = real(P_mink);
+            H_x = H_x_EoM_LSS(uk);
+            [xHat(:,idx+1), Pcov(:,:,idx+1)] = EKF_I_Update(y(:,idx), @(x, u) sym_meas_model_LSS(x, u, bS), m_mink, uk, H_x, P_mink, Rekf);
+        case {"RDS"}
+            F_x = F_x_EoM_RDS(uk);
+            [m_mink,P_mink] = EKF_I_Prediction(@(x, u) sym_EoM_discrete_RDS(x, u), xHat(:,idx), uk, F_x, Pcov(:,:,idx), Qekf);
+            P_mink = real(P_mink);
+            H_x = H_x_EoM_RDS(uk);
+            [xHat(:,idx+1), Pcov(:,:,idx+1)] = EKF_I_Update(y(:,idx), @(x, u) sym_meas_model_RDS(x, u, bS), m_mink, uk, H_x, P_mink, Rekf);
+        case {"RSS", "rSS"}
+            F_x = F_x_EoM_RSS(uk);
+            [m_mink,P_mink] = EKF_I_Prediction(@(x, u) sym_EoM_discrete_RSS(x, u), xHat(:,idx), uk, F_x, Pcov(:,:,idx), Qekf);
+            P_mink = real(P_mink);
+            H_x = H_x_EoM_RSS(uk);
+            [xHat(:,idx+1), Pcov(:,:,idx+1)] = EKF_I_Update(y(:,idx), @(x, u) sym_meas_model_RSS(x, u, bS), m_mink, uk, H_x, P_mink, Rekf);
+        otherwise
+            error("Unknown phase")
+    end
 
     % Estimated output
-    yHat(:,idx) = meas_model(t_thisStep, xHat(:,idx), uk, bS, gaitCycle(1), pOpt);
+    ukCell = {bFHat(:,idx), qHat(:,idx), dqHat(:,idx), ddqHat(:,idx)};
+    yHat(:,idx) = meas_model(k_thisStep, xHat(:,idx), ukCell, bS, gaitCycle(1), pOpt);
 
     %%% Gait Phase Change Detection
     Lws = circshift(Lws, -1); Lws(end) = xHat(2,idx+1);
@@ -266,7 +292,7 @@ for idx = k_strike(1):length(xMeas)-1
 
 
     %%% Input propagation
-    if impactIO
+    if impactIO && ~StopStepping
         khat_strike = [khat_strike idx];
         HScooldown = 40;
         
@@ -278,7 +304,7 @@ for idx = k_strike(1):length(xMeas)-1
             if gaitCycle(1) == "LSS" || gaitCycle(1) == "lSS"
                 [bFHat(:, idx+1), ~, ~] = StepControllerFPE(xHat(:,idx), lmax, SLcorrR+0.0, 1*SWcorrR);
             else
-                [bFHat(:, idx+1), ~, ~] = StepControllerFPE(xHat(:,idx), lmax, SLcorrL+0.0, 0.8*SWcorrL);
+                [bFHat(:, idx+1), ~, ~] = StepControllerFPE(xHat(:,idx), lmax, SLcorrL+0.0, 1*SWcorrL);
             end
         else
             bFHat(:, idx+1) = uMeas{1}(:, idx+1);
@@ -289,15 +315,14 @@ for idx = k_strike(1):length(xMeas)-1
 %         Pcov(3,:,idx+1) = [0 0 1e-2]; Pcov(:,3,idx+1) = [0 0 1e-2].'; Turns indefinite
 %         Pcov(:,:,idx+1) = P0; Unfounded
 %         Pcov(:,:,idx+1) = diag(eig(Pcov(:,:,idx+1))); Just wrong
-        Pcov(:,:,idx+1) = resetCovariance1(xHat(:,idx+1) - [norm(treadVel);0;0], [0.5 0.5 0.5], [1e-10 1e0]); % method 1
-%         Pcov(:,:,idx+1) = resetCovariance2(Pcov(:,:,idx+1)); % method 2
-%         Pcov(:,:,idx+1) = resetCovariance3(Pcov(:,:,idx+1)); % method 3
-        t_thisStep = 0;
+%         Pcov(:,:,idx+1) = resetCovariance(xHat(:,idx+1) - [norm(treadVel);0;0], [0.5 0.5 0.5], [1e-10 1e0]); % method 1
+%         Pcov(:,:,idx+1) = resetCovariance(Pcov(:,:,idx+1)); % method 2
+        k_thisStep = 0;
         
         gaitCycle = circshift(gaitCycle, -1);
     elseif UsePerfectInput
-        bFHat(:, idx+1) = uMeas{1}(:, idx+1);
-        t_thisStep = t_thisStep + dt;
+        bFHat(:, idx+1) = uMeas(:, idx+1);
+        k_thisStep = k_thisStep + dt;
     else 
         omeg_BN = 2*quat2matr(qHat(:,idx)).'*dqHat(:,idx);
         bFHat(:, idx+1) = bFHat(:, idx) + dt*(-xHat(1:3, idx+1) + cross(omeg_BN(2:4), bFHat(:, idx)));
@@ -306,18 +331,26 @@ for idx = k_strike(1):length(xMeas)-1
         else
             bFHat(2, idx+1) = min(bFHat(2, idx+1), 0);
         end
-        t_thisStep = t_thisStep + dt;
+        k_thisStep = k_thisStep + 1;
     end
 
-
+    if k_thisStep == 5
+        gaitCycle = circshift(gaitCycle, -1);
+    end
+    if StopStepping
+        if idx - StopSteppingIdx > 240
+            break
+        end
+    end
+    
 %     %%% Estimate and remove linear drifting from velocities
 %     % Counteract drift
 %     xHat(1, idx+1) = xHat(1, idx+1) - dt*DriftEstimate(1);
 % %     xHat(2, idx+1) = xHat(2, idx+1) - dt*DriftEstimate(2);
 % 
-    xVelIntegral = min(max(xVelIntegral + dt*(xHat(1, idx+1) - norm(treadVel)), -0.5), 0.5);
+    xVelIntegral = min(max(xVelIntegral + dt*(xHat(1, idx+1) - norm(treadVel)), -0.15), 0.15);
     xHat(1, idx+1) = xHat(1, idx+1) - Ki_x*xVelIntegral;
-    yVelIntegral = min(max(yVelIntegral + dt*xHat(2, idx+1), -0.5), 0.5);
+    yVelIntegral = min(max(yVelIntegral + dt*xHat(2, idx+1), -0.15), 0.15);
     xHat(2, idx+1) = xHat(2, idx+1) - Ki_y*yVelIntegral;
 % 
 %     % Estimate drift
@@ -349,40 +382,32 @@ counter = 1;
 ax(counter) = subplot(3,1,1); counter = counter+1;
 plot(tSim, xMeas(1,1:idx), 'r--','DisplayName',"Meas - $\dot{x}$")
 hold on
-plot(tSim, xHat(1,1:idx), 'b--','DisplayName',"Est - $\dot{\hat{x}}$")
-plot(tSim, xHat(1,1:idx) - xMeas(1,1:idx), 'm','DisplayName',"Error")
+plot(tSim, xHat(1,1:idx), 'b--','DisplayName',"Obs - $\dot{\hat{x}}$")
 title("CoM velocity")
 legend('AutoUpdate', 'off','Interpreter','latex')
 xline(t(khat_strike), 'k')
 ylabel("Velocity / (m/s)")
-grid on
 
 ax(counter) = subplot(3,1,2); counter = counter+1;
 plot(tSim, xMeas(2,1:idx), 'r-.','DisplayName',"Meas - $\dot{y}$")
 hold on
-plot(tSim, xHat(2,1:idx)', 'b-.','DisplayName',"Est - $\dot{\hat{y}}$")
-plot(tSim, xHat(2,1:idx) - xMeas(2,1:idx), 'm','DisplayName',"Error")
+plot(tSim, xHat(2,1:idx)', 'b-.','DisplayName',"Obs - $\dot{\hat{y}}$")
 legend('AutoUpdate', 'off','Interpreter','latex')
 xline(t(khat_strike), 'k')
 if UsePhaseChangeDetection
     xline(t(k_strike(1) + 15*120), 'c--', LineWidth=2, Label="Start of PCD")
 end
-if exist("PerturbationOnsetIdx", "var")
-    xline(t(PerturbationOnsetIdx), 'm', LineWidth=2, Label="Start of perturbation")
-end
+xline(t(PerturbationOnsetIdx), 'm', LineWidth=2, Label="Start of perturbation")
 ylabel("Velocity / (m/s)")
-grid on
 
 ax(counter) = subplot(3,1,3); counter = counter+1;
 plot(tSim, xMeas(3,1:idx), 'r','DisplayName',"Meas - $\dot{z}$")
 hold on
-plot(tSim, xHat(3,1:idx), 'b','DisplayName',"Est - $\dot{\hat{z}}$")
-plot(tSim, xHat(3,1:idx) - xMeas(3,1:idx), 'm','DisplayName',"Error")
+plot(tSim, xHat(3,1:idx), 'b','DisplayName',"Obs - $\dot{\hat{z}}$")
 xlabel("Time / s")
 ylabel("Velocity / (m/s)")
 legend('AutoUpdate', 'off','Interpreter','latex')
 xline(t(khat_strike), 'k')
-grid on
 % ylim([-0.5 1.5])
 
 sgtitle("Estimated states")
@@ -414,9 +439,9 @@ figure()
 counter = 1;
 ax(counter) = subplot(3,2,1); counter = counter+1;
 hold on
-plot(t, y(1, :), 'b', DisplayName="a_x")
-plot(t, y(2, :), 'r', DisplayName="a_y")
-plot(t, y(3, :), 'm', DisplayName="a_z")
+plot(t, y(1, :), 'b', DisplayName="a_xHat")
+plot(t, y(2, :), 'r', DisplayName="a_yHat")
+plot(t, y(3, :), 'm', DisplayName="a_zHat")
 title("Measured output")
 xlabel("Time / s")
 ylabel("Acceleration / (m/s^2)")
@@ -434,9 +459,9 @@ legend()
 
 ax(counter) = subplot(3,2,3); counter = counter+1;
 hold on
-plot(t, y(4, :), 'b', DisplayName="gyr_x")
-plot(t, y(5, :), 'r', DisplayName="gyr_y")
-plot(t, y(6, :), 'm', DisplayName="gyr_z")
+plot(t, y(4, :), 'b', DisplayName="gyr_xHat")
+plot(t, y(5, :), 'r', DisplayName="gyr_yHat")
+plot(t, y(6, :), 'm', DisplayName="gyr_zHat")
 xlabel("Time / s")
 ylabel("Angular velocity / (rad/s)")
 legend()
@@ -457,18 +482,14 @@ xlim([tSim(1) tSim(end)])
 
 subplot(3,2,[5 6]); counter = counter+1;
 hold on
-scatter(bFHat(1,PerturbationOnsetIdx:end),bFHat(2,PerturbationOnsetIdx:end), DisplayName="Estimated feet positions")
-scatter(uMeas{1}(1,PerturbationOnsetIdx:end),uMeas{1}(2,PerturbationOnsetIdx:end), DisplayName="Measured feet positions")
+scatter(bFHat(1,10*120:end),bFHat(2,10*120:end), DisplayName="Estimated feet positions")
+scatter(uMeas{1}(1,10*120:end),uMeas{1}(2,10*120:end), DisplayName="Measured feet positions")
 xlabel("B_x / m")
 ylabel("B_y / m")
-title("Inputs after perturbation")
+title("Inputs from 10s on")
 legend()
 
 sgtitle("Measured and estimated inputs and outputs")
-
-%%
-save PerturbedRun.mat y xHat
-DebugObserver
 %% Animate
 % animate_strides_V2(t, xHat, gaitCycle0, k_gaitPhaseChange, u, modelParams)
 % animate_strides_V2(t, xMeas, gaitCycle0, k_gaitPhaseChange, u_real, modelParams)
@@ -497,15 +518,15 @@ end
 
 
 function gaitCycle = getGaitPhase(initGRFmagL, initGRFmagR, bound)
-gaitCycle = ["lSS", "rSS"];
+gaitCycle = ["LDS", "LSS", "RDS", "RSS"];
 % Left Single Stance, Right Single Stance
 
 if initGRFmagL>bound && initGRFmagR>bound
     error("Cannot initialise in double stance, unable to differentiate between left2right and right2left")
 elseif initGRFmagL < bound && initGRFmagR>bound % RSS
-    gaitCycle = circshift(gaitCycle, -1);
+    gaitCycle = circshift(gaitCycle, -3);
 elseif initGRFmagL>bound && initGRFmagR < bound % LSS
-    gaitCycle = circshift(gaitCycle, 0);
+    gaitCycle = circshift(gaitCycle, -1);
 end
 end
 
@@ -528,7 +549,7 @@ switch gaitCycle(1)
 end
 
 ki = ki+ ki_phaseDuration;
-gaitCycle = circshift(gaitCycle, -1); % Next phase
+gaitCycle = circshift(gaitCycle, -2); % Next phase
 
 while true
     k_strike = [k_strike ki-1]; % Heel strike happened previous timestep
@@ -549,12 +570,12 @@ while true
     end
 
     ki = ki+ ki_phaseDuration;
-    gaitCycle = circshift(gaitCycle, -1); % Next phase
+    gaitCycle = circshift(gaitCycle, -2); % Next phase
 end
 
 %%% Obtain foot placements
 gaitCycle = gaitCycle0;
-gaitCycle = circshift(gaitCycle, -1);
+gaitCycle = circshift(gaitCycle, -2);
 
 for idx = 2:length(k_strike)
     switch gaitCycle(1)
@@ -570,7 +591,7 @@ for idx = 2:length(k_strike)
     nStepPosAbsolute = [nStepPosAbsolute, [FPnew; 0]];
     avgBoundMin = [avgBoundMin min(FPnew_set(1:2, :), [], 2)];
     avgBoundMax = [avgBoundMax max(FPnew_set(1:2, :), [], 2)];
-    gaitCycle = circshift(gaitCycle, -1);
+    gaitCycle = circshift(gaitCycle, -2);
 end
 
 % Final phase
@@ -604,49 +625,38 @@ for k = timeWithInput
 end
 end
 
-function Pnew = resetCovariance1(x, stateMax, covRange)
+function Pnew = resetCovariance(x, stateMax, covRange)
 % Method 1: Linearly scaled reset | Pnew = resetCovariance(x, stateMax, covRange)
 Pnew = zeros(length(x));
 for idx = 1:length(x)
     Pnew(idx,idx) = max(min(abs(x(idx))/stateMax(idx), 1), -1) * (covRange(2)-covRange(1)) + covRange(1);
 end
-end
 
-function Pnew = resetCovariance2(Pold)
-
-% Method 2: Collapse resetted dimension | Pnew = resetCovariance(Pold)
-% Collapse most vertical eigenvector
-[V,D] = eig(Pold);
-d = diag(D);
-[~, imax] = max(abs(V(3,:)));
-maxval = V(3,imax);
-V(3,:) = [0 0 0];
-V(:,imax) = [0; 0; sign(maxval)];
-d(imax) = 1e-5;
-
-% Resquare remaining eigenvectors
-idx = 1:3; idx = idx(idx~=imax);
-[~, baseVecIdx] = max(d(idx));
-V(:,idx(idx~=idx(baseVecIdx))) = V(:,idx(idx~=idx(baseVecIdx))) ...
-    - dot(V(:,idx(idx~=idx(baseVecIdx))), V(:,idx(baseVecIdx)))/norm(V(:,idx(baseVecIdx)))^2 * V(:,idx(baseVecIdx));
-
-% % Make the eigenvalues numerically closer
-% d(d<1e-5) = 1e-3;
-
-Pnew = (V*diag(d))/V;
-Pnew = (Pnew + Pnew.')./2;
-
-if any(eig(Pnew) <= 0)
-    error("Failed to create positive definite resetted covariance matrix")
-end
-
-end
-
-function Pnew = resetCovariance3(Pold)
-% Method 3: Rediagonolise P | Pnew = resetCovariance(Pold)
-[V,D] = eig(Pold);
-Pnew = abs(diag(sum(V*D, 2)));
-% Pnew(3,3) = 1e-4;
+% % Method 2: Collapse resetted dimension | Pnew = resetCovariance(Pold)
+% % Collapse most vertical eigenvector
+% [V,D] = eig(Pold);
+% d = diag(D);
+% [~, imax] = max(abs(V(3,:)));
+% maxval = V(3,imax);
+% V(3,:) = [0 0 0];
+% V(:,imax) = [0; 0; sign(maxval)];
+% d(imax) = 1e-5;
+% 
+% % Resquare remaining eigenvectors
+% idx = 1:3; idx = idx(idx~=imax);
+% [~, baseVecIdx] = max(d(idx));
+% V(:,idx(idx~=idx(baseVecIdx))) = V(:,idx(idx~=idx(baseVecIdx))) ...
+%     - dot(V(:,idx(idx~=idx(baseVecIdx))), V(:,idx(baseVecIdx)))/norm(V(:,idx(baseVecIdx)))^2 * V(:,idx(baseVecIdx));
+% 
+% % % Make the eigenvalues numerically closer
+% % d(d<1e-5) = 1e-3;
+% 
+% Pnew = (V*diag(d))/V;
+% Pnew = (Pnew + Pnew.')./2;
+% 
+% if any(eig(Pnew) <= 0)
+%     error("Failed to create positive definite resetted covariance matrix")
+% end
 
 end
 

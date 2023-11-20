@@ -2,7 +2,7 @@ function [IMUmeas] = meas_model(t, x, u, bS, phase, pars)
 %MEAS_MODEL Measurement model in state space form for the human walking
 % model wearing an IMU
 %     t [1] Time since last heel strike
-%     x [11 1] State
+%     x [3 1] State
 %     u {[3 1], [4 1], [4 1], [4 1]} Inputs, Foot position in body fixed
 %       frame, orientation quaternion, 1st quaternion derivative, 2nd quaternion derivative
 %     bS [3 1] Body fixed sensor position wrt the CoM
