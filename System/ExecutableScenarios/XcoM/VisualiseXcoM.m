@@ -72,7 +72,7 @@ disp(strjoin(["The observer starts in" gaitCycle0(1)]))
 
 uMeas{1} = AbsoluteStep2RelativeStep(xMeas, uMeas{2}, nStepPosAbsolute, COM, k_strike, gaitCycle0); % Translate world coordinates to body relative coords
 
-%% Obtain XCoM
+%% Initialise XCoM
 fallDetectIO = zeros(1, length(xMeas));
 MoS = nan(1, length(xMeas));
 TtC = nan(1, length(xMeas));

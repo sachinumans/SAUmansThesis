@@ -17,7 +17,7 @@ load modelParams.mat
 
 %% Define Observation data
 TrialNumSet = [2 5 8 11 14 16 32];
-k = (1:(120*20))+120*34; % Observation data
+k = (1:(120*20))+120*6; % Observation data
 
 BMthr = 0.2; % Fraction of bodyweight that forms the threshold whether or not a foot is carrying weight
 plotIO = 1; % Plot data?
