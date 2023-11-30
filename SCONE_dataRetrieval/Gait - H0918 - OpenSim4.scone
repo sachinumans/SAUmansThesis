@@ -1,16 +1,17 @@
 CmaOptimizer {
 	signature_prefix = DATE_TIME
 	min_progress = 1e-4
-	init { file = results/WalkingController10s/WalkingController10s.par}
+	#init { file = results/10s/WalkingController10s/WalkingController10s.par}
 	
 	SimulationObjective {
-		max_duration = 10
+		max_duration = 80
 		auto_std_factor = 0.02
 		
 		# Model used in simulation
 		ModelOpenSim4 {
 			#model_file = data/H0918M_osim4.osim
-			model_file = data/H0918M_osim4_WithTrip.osim
+			#model_file = data/H0918M_osim4_WithTrip.osim
+			model_file = data/H0918M_osim4_wSensors.osim
 			
 			# Optimize initial state parameters
 			state_init_file = data/InitStateGait10.zml
@@ -26,7 +27,7 @@ CmaOptimizer {
 		<< data/ControllerGH2010M18v9.scone >>
 		
 		# Measure for gait; includes stop condition
-		#<< data/MeasureGait10Grf15.scone >>
-		<< data/MeasureGait10Grf15_FallFar.scone >> #COMMENT OUT FOR OPTIMIZATION
+		<< data/MeasureGait10Grf15.scone >>
+		#<< data/MeasureGait10Grf15_FallFar.scone >> #COMMENT OUT FOR OPTIMIZATION
 	}
 }
