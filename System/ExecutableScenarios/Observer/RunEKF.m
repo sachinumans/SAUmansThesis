@@ -389,18 +389,18 @@ figure(WindowState="maximized");
 ctr = 1;
 for i = 1:4
     ax(counter) = subplot(4, 3, ctr); ctr = ctr+1; counter = counter+1;
-    plot(t, qHat(i, :), 'b', DisplayName="Estimate"); hold on
-    plot(t, uMeas{2}(i, :), 'r', DisplayName="Measurement")
+    plot(t, uMeas{2}(i, :), 'r', DisplayName="Measurement"); hold on
+    plot(t, qHat(i, :), 'b', DisplayName="Estimate")
     title(['q_' num2str(i)])
 
     ax(counter) = subplot(4, 3, ctr); ctr = ctr+1; counter = counter+1;
-    plot(t, dqHat(i, :), 'b', DisplayName="Estimate"); hold on
-    plot(t, uMeas{3}(i, :), 'r', DisplayName="Measurement")
+    plot(t, uMeas{3}(i, :), 'r', DisplayName="Measurement"); hold on
+    plot(t, dqHat(i, :), 'b', DisplayName="Estimate")
     title(['dq_' num2str(i)])
 
     ax(counter) = subplot(4, 3, ctr); ctr = ctr+1; counter = counter+1;
-    plot(t, ddqHat(i, :), 'b', DisplayName="Estimate"); hold on
-    plot(t, uMeas{4}(i, :), 'r', DisplayName="Measurement")
+    plot(t, uMeas{4}(i, :), 'r', DisplayName="Measurement"); hold on
+    plot(t, ddqHat(i, :), 'b', DisplayName="Estimate")
     title(['ddq_' num2str(i)])
 end
 legend()
@@ -410,59 +410,73 @@ sgtitle("Estimated orientation")
 
 figure()
 counter = 1;
-ax(counter) = subplot(3,2,1); counter = counter+1;
+ax(counter) = subplot(2,2,1); counter = counter+1;
 hold on
-plot(t, y(1, :), 'b', DisplayName="a_xHat")
-plot(t, y(2, :), 'r', DisplayName="a_yHat")
-plot(t, y(3, :), 'm', DisplayName="a_zHat")
+plot(t, y(1, :), 'b', DisplayName="$a_x$")
+plot(t, y(2, :), 'r', DisplayName="$a_y$")
+plot(t, y(3, :), Color='#EDB120', DisplayName="$a_z$")
 title("Measured output")
-xlabel("Time / s")
+% xlabel("Time / s")
 ylabel("Acceleration / (m/s^2)")
-legend()
+grid on
+legend("Interpreter","latex")
 
-ax(counter) = subplot(3,2,2); counter = counter+1;
+ax(counter) = subplot(2,2,2); counter = counter+1;
 hold on
-plot(t, yHat(1, :), 'b', DisplayName="a_xHat")
-plot(t, yHat(2, :), 'r', DisplayName="a_yHat")
-plot(t, yHat(3, :), 'm', DisplayName="a_zHat")
+plot(t, yHat(1, :), 'b', DisplayName="$\hat a_{x}$")
+plot(t, yHat(2, :), 'r', DisplayName="$\hat a_{y}$")
+plot(t, yHat(3, :), Color='#EDB120', DisplayName="$\hat a_{z}$")
 title("Estimated output")
-xlabel("Time / s")
-ylabel("Acceleration / (m/s^2)")
-legend()
+% xlabel("Time / s")
+% ylabel("Acceleration / (m/s^2)")
+grid on
+legend("Interpreter","latex")
 
-ax(counter) = subplot(3,2,3); counter = counter+1;
+ax(counter) = subplot(2,2,3); counter = counter+1;
 hold on
-plot(t, y(4, :), 'b', DisplayName="gyr_xHat")
-plot(t, y(5, :), 'r', DisplayName="gyr_yHat")
-plot(t, y(6, :), 'm', DisplayName="gyr_zHat")
+plot(t, y(4, :), 'b', DisplayName="$\dot\theta_x$")
+plot(t, y(5, :), 'r', DisplayName="$\dot\theta_y$")
+plot(t, y(6, :), Color='#EDB120', DisplayName="$\dot\theta_z$")
 xlabel("Time / s")
 ylabel("Angular velocity / (rad/s)")
-legend()
+grid on
+legend("Interpreter","latex")
 
-ax(counter) = subplot(3,2,4); counter = counter+1;
+ax(counter) = subplot(2,2,4); counter = counter+1;
 hold on
-plot(t, yHat(4, :), 'b', DisplayName="gyr_xHat")
-plot(t, yHat(5, :), 'r', DisplayName="gyr_yHat")
-plot(t, yHat(6, :), 'm', DisplayName="gyr_zHat")
+plot(t, yHat(4, :), 'b', DisplayName="$\hat{\dot\theta}_{x}$")
+plot(t, yHat(5, :), 'r', DisplayName="$\hat{\dot\theta}_{y}$")
+plot(t, yHat(6, :), Color='#EDB120', DisplayName="$\hat{\dot\theta}_{z}$")
 xlabel("Time / s")
-ylabel("Angular velocity / (rad/s)")
-legend()
+% ylabel("Angular velocity / (rad/s)")
+grid on
+legend("Interpreter","latex")
 
 linkaxes(ax, 'x');
 linkaxes(ax(1:2), 'y');
 linkaxes(ax(3:4), 'y');
 xlim([tSim(1) tSim(end)])
 
-subplot(3,2,[5 6]); counter = counter+1;
-hold on
-scatter(bFHat(1,10*120:end),bFHat(2,10*120:end), DisplayName="Estimated feet positions")
-scatter(uMeas{1}(1,10*120:end),uMeas{1}(2,10*120:end), DisplayName="Measured feet positions")
+% subplot(3,2,[5 6]); counter = counter+1;
+% hold on
+% scatter(bFHat(1,10*120:end),bFHat(2,10*120:end), DisplayName="Estimated feet positions")
+% scatter(uMeas{1}(1,10*120:end),uMeas{1}(2,10*120:end), DisplayName="Measured feet positions")
+% xlabel("B_x / m")
+% ylabel("B_y / m")
+% title("Inputs from 10s on")
+% legend()
+
+sgtitle("Measured and estimated outputs")
+
+figure
+scatter(bFHat(1,k_strike+1),bFHat(2,k_strike+1), 'bo', DisplayName="Estimated feet positions"); hold on
+scatter(uMeas{1}(1,k_strike+1),uMeas{1}(2,k_strike+1), 'rx', DisplayName="Measured feet positions")
 xlabel("B_x / m")
 ylabel("B_y / m")
-title("Inputs from 10s on")
-legend()
+title("Measured and estimated foot placements")
+legend
+grid on
 
-sgtitle("Measured and estimated inputs and outputs")
 %% Animate
 % animate_strides_V2(t, xHat, gaitCycle0, k_gaitPhaseChange, u, modelParams)
 % animate_strides_V2(t, xMeas, gaitCycle0, k_gaitPhaseChange, u_real, modelParams)

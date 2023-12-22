@@ -1577,7 +1577,7 @@
 							<!--Path to a Component that satisfies the Socket 'parent' of type C (description: The parent frame to this frame.).-->
 							<socket_parent>/bodyset/Marker_LAC</socket_parent>
 							<!--Translational offset (in meters) of this frame's origin from the parent frame's origin, expressed in the parent frame.-->
-							<translation>0 -0.44999998807907104 0.15000000596046448</translation>
+							<translation>0.049999997019767761 -0.44999998807907104 0.15000000596046448</translation>
 						</PhysicalOffsetFrame>
 					</frames>
 				</WeldJoint>
@@ -1610,7 +1610,7 @@
 							<!--Path to a Component that satisfies the Socket 'parent' of type C (description: The parent frame to this frame.).-->
 							<socket_parent>/bodyset/Marker_RAC</socket_parent>
 							<!--Translational offset (in meters) of this frame's origin from the parent frame's origin, expressed in the parent frame.-->
-							<translation>0 -0.44999998807907104 -0.15000000596046448</translation>
+							<translation>0.05000000074505806 -0.44999998807907104 -0.15000000596046448</translation>
 						</PhysicalOffsetFrame>
 					</frames>
 				</WeldJoint>

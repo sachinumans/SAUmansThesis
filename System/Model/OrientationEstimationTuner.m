@@ -10,11 +10,11 @@ clearvars -except data subjectNum
 
 % load measurement data
 if exist("data","var") ~= 1
-    load([pwd '\..\..\..\human-walking-biomechanics\Level 3 - MATLAB files\Level 3 - MATLAB files\All Strides Data files\p' num2str(subjectNum) '_AllStridesData.mat'])
+    load([pwd '\..\..\human-walking-biomechanics\Level 3 - MATLAB files\Level 3 - MATLAB files\All Strides Data files\p' num2str(subjectNum) '_AllStridesData.mat'])
 end
 
 %% Define Observation data
-TrialNum = 8;
+TrialNum = 11;
 k = (1:(120*20))+120*10; % Observation data
 
 BMthr = 0.2; % Fraction of bodyweight that forms the threshold whether or not a foot is carrying weight
@@ -62,7 +62,7 @@ RgrfVec = ROTM*(RgrfVec');
 LgrfVec = ROTM*(LgrfVec');
 
 % Translate optical markers to state trajectories
-xMeas = meas2state(LASI, RASI, SACR, COM, CAC);
+[xMeas, uMeas] = meas2state(LASI, RASI, SACR, COM, CAC);
 % State:      x(1:3)  : CoM velocity in frame N
 %             x(4:7)  : Rotation quaternion from B to N
 %             x(8:11) : Rotation quaternion derivative
@@ -119,10 +119,11 @@ if plotIO
     legend()
     drawnow
 end
-%% Create observable system
-[obsSys_4ch, Roscil, Qoscil, Soscil] = getOscilator_4channels(0.97, dt);
 
-qSteady = mean(xMeas(4:7,:), 2);
+%% Create observable system
+[obsSys_4ch, Roscil, Qoscil, Soscil] = getOscilator_4channels(1.16, dt);
+
+qSteady = mean(uMeas{2}, 2);
 
 %% Loop through time
 % Initialise
@@ -169,25 +170,27 @@ toc
 % RMSEdq = sqrt(mean(sum((dqMeas - yHat).^2, 1)))
 
 %% plot
-% f = 120*(0:(length(xMeas)/2))/length(xMeas);
-% figure()
-% for q = 1:4
-% Y = fft(xMeas(q+3,:));
-% P2 = abs(Y/length(xMeas));
-% P1{q} = P2(1:length(xMeas)/2+1);
-% P1{q}(2:end-1) = 2*P1{q}(2:end-1);
-%
+f = 120*(0:(length(xMeas)/2))/length(xMeas);
+figure()
+for q = 1:4
+Y = fft(uMeas{2}(q,:) - mean(uMeas{2}(q,:)));
+P2 = abs(Y/length(xMeas));
+P1{q} = P2(1:length(xMeas)/2+1);
+P1{q}(2:end-1) = 2*P1{q}(2:end-1);
+
 % ax(q) = subplot(2,2,q);
-% loglog(f,P1{q})
-% xlabel('f (Hz)')
-% ylabel('|P1(f)|')
+loglog(f,P1{q}, DisplayName=['q_' num2str(q-1)]); hold on
+xlabel('f (Hz)')
+ylabel('|P1(f)|')
 % title(['q_' num2str(q)])
-% end
-%
-% xlim([0 20])
+end
+
+xlim([0.2 3])
 % linkaxes(ax); clearvars ax
-% sgtitle('Single-Sided Amplitude Spectrum of quaternion')
-%
+title('Single-Sided Amplitude Spectrum of quaternion elements')
+legend
+grid on
+
 % figure()
 % loglog(f, P1{1}.*P1{2}.*P1{3}.*P1{4}, DisplayName="Including q_0"); hold on
 % loglog(f, P1{2}.*P1{3}.*P1{4}, DisplayName="Excluding q_0");
@@ -196,23 +199,23 @@ toc
 % title('Multiplied power spectra of quaternion elements')
 % legend()
 
-clearvars ax;
+% clearvars ax;
 figure(WindowState="maximized");
 ctr = 1;
 for i = 1:4
     ax(ctr) = subplot(4, 3, ctr); ctr = ctr+1;
-    plot(t, qHat(i, :), 'b', DisplayName="Estimate"); hold on
-    plot(t, xMeas(i+3, :), 'r', DisplayName="Measurement")
+    plot(t, uMeas{2}(i, :), 'r', DisplayName="Measurement"); hold on
+    plot(t(2:end-1), qHat(i, :), 'b', DisplayName="Estimate")
     title(['q_' num2str(i)])
 
     ax(ctr) = subplot(4, 3, ctr); ctr = ctr+1;
-    plot(t, dqHat(i, :), 'b', DisplayName="Estimate"); hold on
-    plot(t, xMeas(i+7, :), 'r', DisplayName="Measurement")
+    plot(t, uMeas{3}(i, :), 'r', DisplayName="Measurement"); hold on
+    plot(t(2:end-1), dqHat(i, :), 'b', DisplayName="Estimate")
     title(['dq_' num2str(i)])
 
     ax(ctr) = subplot(4, 3, ctr); ctr = ctr+1;
-    plot(t, ddqHat(i, :), 'b', DisplayName="Estimate"); hold on
-    plot(t(2:end-1), (xMeas(i+7, 3:end)-xMeas(i+7, 1:end-2)).*60, 'r', DisplayName="Measurement")
+    plot(t, uMeas{4}(i, :), 'r', DisplayName="Measurement"); hold on
+    plot(t(2:end-1), ddqHat(i, :), 'b', DisplayName="Estimate")
     title(['ddq_' num2str(i)])
 end
 legend()
@@ -222,7 +225,7 @@ legend()
 % plot(t(2:end-1), ddqMeas, 'r', DisplayName="Measurement")
 % title("Angular orientation")
 % legend()
-
+sgtitle("Orientation Estimation")
 linkaxes(ax, 'x')
 axis("tight")
 

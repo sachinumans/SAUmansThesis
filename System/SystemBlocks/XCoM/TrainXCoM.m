@@ -66,7 +66,7 @@ xcomWalkSpeedFitX = fitlm(vels, XcoM_xmax);
 xcomWalkSpeedFitY = fitlm(vels, XcoM_ymax);
 
 %%
-subplot(1, 2, 1)
+% subplot(1, 2, 1)
 plot(xcomWalkSpeedFitX)
 xlabel("Average walking velocity / (m/s)")
 ylabel("Maximum anterior XCoM excursion / m")
@@ -79,17 +79,17 @@ a1 = a99(2, 2);
 
 plot(0:0.5:max(vels), a0 + a1*(0:0.5:max(vels)), DisplayName="75% Certainty")
 
-subplot(1, 2, 2)
-plot(xcomWalkSpeedFitY)
-xlabel("Average walking velocity / (m/s)")
-ylabel("Maximum lateral XCoM excursion / m")
-title("Relation between walking speed and lateral XCoM")
-hold on
+% subplot(1, 2, 2)
+% plot(xcomWalkSpeedFitY)
+% xlabel("Average walking velocity / (m/s)")
+% ylabel("Maximum lateral XCoM excursion / m")
+% title("Relation between walking speed and lateral XCoM")
+% hold on
 b99 = coefCI(xcomWalkSpeedFitY,0.5);
 
 b0 = b99(1, 2);
 b1 = b99(2, 2);
 
-plot(0:0.5:max(vels), b0 + b1*(0:0.5:max(vels)), DisplayName="75% Certainty")
+% plot(0:0.5:max(vels), b0 + b1*(0:0.5:max(vels)), DisplayName="75% Certainty")
 
 save xcomParams a0 a1 xcomWalkSpeedFitX b0 b1 xcomWalkSpeedFitY

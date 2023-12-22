@@ -344,7 +344,7 @@ drawnow
 %% Orientation observation
 % Create observable system
 
-[sys_oscil, Roscil, Qoscil, Soscil] = getOscilator_4channels(0.97, dt);
+[sys_oscil, Roscil, Qoscil, Soscil] = getOscilator_4channels(1.16, dt);
 
 qSteady = mean(uMeas{2}, 2);
 
@@ -356,6 +356,120 @@ if ~debugMode
     exportgraphics(resetFig,'Figures\noResetPhaseTransitions.pdf', ContentType='vector')
 %     close all
 end
+
+%% Plot for the thesis
+gaitCycle = gaitCycle0
+% State trajectory
+tMeas = (1:length(xMeas) )*dt;
+% tModel = (1:length(xModel))*dt;
+tModel = tMeas(k_strike(1):end);
+
+f = figure(WindowState="maximized");
+i = 1;
+for k = k_strike
+    xline(tMeas(k), 'k', gaitCycle(1))
+    gaitCycle = circshift(gaitCycle, -2);
+end
+ylim([-0.1 0.1])
+
+ax(i) = subplot(3,1,1); i=i+1;
+         plot(tMeas , xMeas (1,:), 'r--' , DisplayName="Meas - $\dot{x}$" ); hold on
+plotIntervals(tMeas , xModel(1,:), 'b--' ,             "Model - $\dot{x}$", k_strike)
+plot(nan, 'b--', DisplayName="Model - $\dot{x}$")
+legend(Interpreter="latex")
+title("CoM velocity")
+ylabel("Velocity / (m/s)")
+% ylim([-0.5 2])
+grid on
+
+ax(i) = subplot(3,1,2); i=i+1;
+         plot(tMeas , xMeas (2,:), 'r-.'  , DisplayName="Meas - $\dot{y}$" ); hold on
+plotIntervals(tMeas , xModel(2,:), 'b-.'  ,             "Model - $\dot{y}$", k_strike)
+plot(nan, 'b-.' , DisplayName="Model - $\dot{y}$")
+legend(Interpreter="latex")
+xlabel("Time / s")
+ylabel("Velocity / (m/s)")
+% ylim([-0.5 2])
+grid on
+
+ax(i) = subplot(3,1,3); i=i+1;
+         plot(tMeas , xMeas (3,:), 'r'   , DisplayName="Meas - $\dot{z}$" ); hold on
+plotIntervals(tMeas , xModel(3,:), 'b'   ,             "Model - $\dot{z}$", k_strike)
+plot(nan, 'b'  , DisplayName="Model - $\dot{z}$")
+legend(Interpreter="latex")
+xlabel("Time / s")
+ylabel("Velocity / (m/s)")
+% ylim([-0.5 2])
+grid on
+
+sgtitle("Training Model Fit per Phase")
+
+linkaxes(ax, 'x')
+
+% GRF magnitudes
+t = (1:length(bGRF))*dt;
+figure()
+plot(t, LgrfMag(3:end-2), DisplayName="Left"); hold on
+plot(t, RgrfMag(3:end-2), DisplayName="Right")
+plot(t, vecnorm(bGRF, 2, 1), DisplayName="Model GRF")
+title("Training GRF magnitude")
+xlabel("Time / s")
+ylabel("GRF magnitude / N")
+legend
+grid on
+
+% FPE training
+if gaitCycle0(1) == "LSS" || gaitCycle0(1) == "lSS"
+    k_strikeL = k_strike(2:2:end);
+    k_strikeR = k_strike(1:2:end);
+else
+    k_strikeL = k_strike(1:2:end);
+    k_strikeR = k_strike(2:2:end);
+end
+
+controlledStepL = nan(3, length(k_strikeL));
+controlledStepR = nan(3, length(k_strikeR));
+for idx = 1:length(k_strikeL)
+    controlledStepL(:,idx) = StepControllerFPE(xMeas(:,k_strikeL(idx)), lmax, SLcorrL, SWcorrL);
+end
+for idx = 1:length(k_strikeR)
+    controlledStepR(:,idx) = StepControllerFPE(xMeas(:,k_strikeR(idx)), lmax, SLcorrR, SWcorrR);
+end
+
+figure();
+subplot(3,1,1)
+plot(k_strikeL*dt, realStepL(1, :), 'rx'); hold on
+plot(k_strikeR*dt, realStepR(1, :), 'rx')
+plot(k_strikeL*dt, controlledStepL(1,:), 'bx')
+plot(k_strikeR*dt, controlledStepR(1,:), 'bx')
+% legend("Measured", "Controller")
+title("Training Step Length")
+% xlabel("Timestep")
+ylabel("Meter")
+grid on
+
+subplot(3,1,2)
+plot(k_strikeL*dt, realStepL(2, :), 'rx', DisplayName="Measured"); hold on
+plot(k_strikeL*dt, controlledStepL(2,:), 'bx', DisplayName="FPE @ Heel Strike")
+legend(AutoUpdate="off")
+plot(k_strikeR*dt, realStepR(2, :), 'rx', DisplayName="Measured"); hold on
+plot(k_strikeR*dt, controlledStepR(2,:), 'bx', DisplayName="FPE @ Heel Strike")
+title("Training Step Width")
+% xlabel("Timestep")
+ylabel("Meter")
+grid on
+
+subplot(3,1,3)
+errL = vecnorm(controlledStepL - realStepL, 2, 1);
+errR = vecnorm(controlledStepR - realStepR, 2, 1);
+plot(k_strikeL*dt, errL, 'ro', DisplayName="Error given HS time"); hold on
+legend(AutoUpdate="off")
+plot(k_strikeR*dt, errR, 'ro', DisplayName="Error given HS time");
+yline(mean([errL errR], "omitnan"), 'r--', ['Mean = ' num2str(round(mean([errL errR], "omitnan"), 3))])
+title("Training Absolute Placement Error")
+xlabel("Timestep")
+ylabel("Meter")
+grid on
 
 %% Functions
 % For your own sanity, collapse these
