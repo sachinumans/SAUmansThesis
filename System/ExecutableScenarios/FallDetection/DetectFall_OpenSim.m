@@ -31,7 +31,7 @@ varGyr = 1e-4;%1e-5; % Gyroscope noise variance
 
 % Dedrifting
 % DedriftEveryNSteps = 2;
-Ki_x = 5e-2; % Integral correction term for sagittal velocity
+Ki_x = 1e-1; % Integral correction term for sagittal velocity
 Ki_y = 1e-1; % Integral correction term for lateral velocity
 
 
@@ -345,32 +345,37 @@ tSim = t(1:idx);
 figure(WindowState="maximized")
 counter = 1;
 
-ax(counter) = subplot(3,1,1); counter = counter+1;
-% plot(tSim, xMeas(1,1:idx), 'r--','DisplayName',"Meas - $\dot{x}$")
+ax(counter) = subplot(2,1,1); counter = counter+1;
+plot(tSim, xMeas(1,1:idx), 'r--','DisplayName',"Meas - $\dot{x}$")
 hold on
 plot(tSim, xHat(1,1:idx), 'b--','DisplayName',"Est - $\dot{\hat{x}}$")
-plot(nan, 'k', DisplayName="Phase changes")
-plot(nan, Color=[1 0 0 0.3], DisplayName="Fall detection")
 title("CoM velocity")
+plot(nan, Color=[1 0 0 0.3], DisplayName="Detection")
 legend('AutoUpdate', 'off','Interpreter','latex')
 xline(t(khat_strike), 'k')
-if ~isempty(t(fallDetectIO == 1)); xline(t(fallDetectIO == 1), Color=[1 0 0 0.3], Alpha=0.3); end
 ylabel("Velocity / (m/s)")
-
-ax(counter) = subplot(3,1,2); counter = counter+1;
-% plot(tSim, xMeas(2,1:idx), 'r-.','DisplayName',"Meas - $\dot{y}$")
-hold on
-plot(tSim, xHat(2,1:idx)', 'b-.','DisplayName',"Est - $\dot{\hat{y}}$")
-legend('AutoUpdate', 'off','Interpreter','latex')
-xline(t(khat_strike), 'k')
-if UsePhaseChangeDetection
-    xline(t(k_strike(1) + 15*120), 'c--', LineWidth=2, Label="Start of PCD")
+if ~isempty(t(fallDetectIO == 1))
+    xline(t(fallDetectIO == 1), Color=[1 0 0 0.3], Alpha=0.3); 
+    xline(t(find(fallDetectIO == 1 & t > 70, 1)), '', ['t = ' num2str(t(find(fallDetectIO == 1 & t > 70, 1)), 4)], Color=[1 0 0], LineWidth=1);
 end
-xline(t(PerturbationOnsetIdx), 'm', LineWidth=2, Label="Start of perturbation")
-ylabel("Velocity / (m/s)")
 
-ax(counter) = subplot(3,1,3); counter = counter+1;
-% plot(tSim, xMeas(3,1:idx), 'r','DisplayName',"Meas - $\dot{z}$")
+xline(71.344, 'k', "Contact", LineWidth=1)
+xline(72.48, 'k', "Impact", LineWidth=1)
+grid on
+
+% ax(counter) = subplot(3,1,2); counter = counter+1;
+% plot(tSim, xMeas(2,1:idx), 'r-.','DisplayName',"Meas - $\dot{y}$")
+% hold on
+% plot(tSim, xHat(2,1:idx)', 'b-.','DisplayName',"Obs - $\dot{\hat{y}}$")
+% legend('AutoUpdate', 'off','Interpreter','latex')
+% xline(t(khat_strike), 'k')
+% if UsePhaseChangeDetection
+%     xline(t(k_strike(1) + 15*120), 'c--', LineWidth=2, Label="Start of PCD")
+% end
+% ylabel("Velocity / (m/s)")
+
+ax(counter) = subplot(2,1,2); counter = counter+1;
+plot(tSim, xMeas(3,1:idx), 'r','DisplayName',"Meas - $\dot{z}$")
 hold on
 plot(tSim, xHat(3,1:idx), 'b','DisplayName',"Est - $\dot{\hat{z}}$")
 xlabel("Time / s")
@@ -378,6 +383,7 @@ ylabel("Velocity / (m/s)")
 legend('AutoUpdate', 'off','Interpreter','latex')
 xline(t(khat_strike), 'k')
 % ylim([-0.5 1.5])
+grid on
 
 sgtitle("Estimated states")
 
@@ -403,66 +409,78 @@ legend()
 
 linkaxes(ax, 'x');
 sgtitle("Estimated orientation")
-linkaxes(ax, 'x');
-clearvars ax
-% sgtitle("Estimated orientation")
+xlim([70.5, 73])
 
-figure(WindowState="maximized")
+figure()
 counter = 1;
-ax(counter) = subplot(3,4,1); counter = counter+1;
+ax(counter) = subplot(2,2,1); counter = counter+1;
 hold on
-plot(t(1:idx), y(1, 1:idx), 'b', DisplayName="a_xHat")
-plot(t(1:idx), y(2, 1:idx), 'r', DisplayName="a_yHat")
-plot(t(1:idx), y(3, 1:idx), 'm', DisplayName="a_zHat")
+plot(t, y(1, :), 'b', DisplayName="$a_x$")
+plot(t, y(2, :), 'r', DisplayName="$a_y$")
+plot(t, y(3, :), Color='#EDB120', DisplayName="$a_z$")
 title("Measured output")
-xlabel("Time / s")
+% xlabel("Time / s")
 ylabel("Acceleration / (m/s^2)")
-legend()
+grid on
+legend("Interpreter","latex")
 
-ax(counter) = subplot(3,4,2); counter = counter+1;
+ax(counter) = subplot(2,2,2); counter = counter+1;
 hold on
-plot(t(1:idx), yHat(1, 1:idx), 'b', DisplayName="a_xHat")
-plot(t(1:idx), yHat(2, 1:idx), 'r', DisplayName="a_yHat")
-plot(t(1:idx), yHat(3, 1:idx), 'm', DisplayName="a_zHat")
+plot(t, yHat(1, :), 'b', DisplayName="$\hat a_{x}$")
+plot(t, yHat(2, :), 'r', DisplayName="$\hat a_{y}$")
+plot(t, yHat(3, :), Color='#EDB120', DisplayName="$\hat a_{z}$")
 title("Estimated output")
-xlabel("Time / s")
-ylabel("Acceleration / (m/s^2)")
-legend()
+% xlabel("Time / s")
+% ylabel("Acceleration / (m/s^2)")
+grid on
+legend("Interpreter","latex")
 
-ax(counter) = subplot(3,4,5); counter = counter+1;
+ax(counter) = subplot(2,2,3); counter = counter+1;
 hold on
-plot(t(1:idx), y(4, 1:idx), 'b', DisplayName="gyr_xHat")
-plot(t(1:idx), y(5, 1:idx), 'r', DisplayName="gyr_yHat")
-plot(t(1:idx), y(6, 1:idx), 'm', DisplayName="gyr_zHat")
+plot(t, y(4, :), 'b', DisplayName="$\dot\theta_x$")
+plot(t, y(5, :), 'r', DisplayName="$\dot\theta_y$")
+plot(t, y(6, :), Color='#EDB120', DisplayName="$\dot\theta_z$")
 xlabel("Time / s")
 ylabel("Angular velocity / (rad/s)")
-legend()
+grid on
+legend("Interpreter","latex")
 
-ax(counter) = subplot(3,4,6); counter = counter+1;
+ax(counter) = subplot(2,2,4); counter = counter+1;
 hold on
-plot(t(1:idx), yHat(4, 1:idx), 'b', DisplayName="gyr_xHat")
-plot(t(1:idx), yHat(5, 1:idx), 'r', DisplayName="gyr_yHat")
-plot(t(1:idx), yHat(6, 1:idx), 'm', DisplayName="gyr_zHat")
+plot(t, yHat(4, :), 'b', DisplayName="$\hat{\dot\theta}_{x}$")
+plot(t, yHat(5, :), 'r', DisplayName="$\hat{\dot\theta}_{y}$")
+plot(t, yHat(6, :), Color='#EDB120', DisplayName="$\hat{\dot\theta}_{z}$")
 xlabel("Time / s")
-ylabel("Angular velocity / (rad/s)")
-legend()
+% ylabel("Angular velocity / (rad/s)")
+grid on
+legend("Interpreter","latex")
 
 linkaxes(ax, 'x');
-% linkaxes(ax(1:2), 'y');
-% linkaxes(ax(3:4), 'y');
-axis("tight")
+linkaxes(ax(1:2), 'y');
+linkaxes(ax(3:4), 'y');
+xlim([70.5, 73])
 
-subplot(3,2,[5 6]); counter = counter+1;
-hold on
-scatter(bFHat(1,10*120:end),bFHat(2,10*120:end), DisplayName="Estimated feet positions")
-scatter(uMeas{1}(1,10*120:end),uMeas{1}(2,10*120:end), DisplayName="Measured feet positions")
-xlabel("B_x / m")
-ylabel("B_y / m")
-title("Inputs from 10s on")
-legend()
-sgtitle("Measured and estimated inputs and outputs")
+% subplot(3,2,[5 6]); counter = counter+1;
+% hold on
+% scatter(bFHat(1,10*120:end),bFHat(2,10*120:end), DisplayName="Estimated feet positions")
+% scatter(uMeas{1}(1,10*120:end),uMeas{1}(2,10*120:end), DisplayName="Measured feet positions")
+% xlabel("B_x / m")
+% ylabel("B_y / m")
+% title("Inputs from 10s on")
+% legend()
 
-subplot(3,2,[2 4]); counter = counter+1;
+sgtitle("Measured and estimated outputs")
+
+% figure
+% scatter(bFHat(1,k_strike+1),bFHat(3,k_strike+1), 'bo', DisplayName="Estimated feet positions"); hold on
+% scatter(uMeas{1}(1,k_strike+1),uMeas{1}(3,k_strike+1), 'rx', DisplayName="Measured feet positions")
+% xlabel("B_x / m")
+% ylabel("B_z / m")
+% title("Measured and estimated foot placements")
+% legend
+% grid on
+
+figure
 hold on
 plot(polyshape(BoS(1,:),BoS(2,:)), DisplayName="BoS", FaceColor=[.2 1 .2], FaceAlpha=0.2)
 plot(bFHat(1,:),bFHat(2,:), Color=[1 0 0 0.1], DisplayName="Estimated feet positions")
@@ -472,7 +490,15 @@ xlabel("B_x / m")
 ylabel("B_y / m")
 title("Inputs and XCoM")
 legend()
-sgtitle("Measured and estimated inputs and outputs")
+
+figure
+hold on
+plot(t, XcoM(1,:), Color=[0 0 1], DisplayName="XcoM")
+yline(BoSx, 'k', "BoS boundary", LineWidth=1)
+xlabel("Time / s")
+ylabel("B_x / m")
+xlim([55, 73])
+
 %% Animate
 % animate_strides_V2(t, xHat, gaitCycle0, k_gaitPhaseChange, u, modelParams)
 % animate_strides_V2(t, xMeas, gaitCycle0, k_gaitPhaseChange, u_real, modelParams)
@@ -540,10 +566,10 @@ while true
     switch gaitCycle(1)
         case {"lSS", "LSS"}
             ki_phaseDuration = find(RgrfMag(ki:end)<bound, 1) - 1; % Find time until toe off
-            ki_phaseDuration = ki_phaseDuration + find(RgrfMag(ki+ki_phaseDuration:end)>bound, 1) - 1; % Find time until next heel strike
+            ki_phaseDuration = ki_phaseDuration + find(RgrfMag(ki+(ki_phaseDuration+15):end)>bound, 1) - 1; % Find time until next heel strike
         case {"rSS", "RSS"}
             ki_phaseDuration = find(LgrfMag(ki:end)<bound, 1) - 1; % Find time until toe off
-            ki_phaseDuration = ki_phaseDuration + find(LgrfMag(ki+ki_phaseDuration:end)>bound, 1) - 1; % Find time until next heel strike
+            ki_phaseDuration = ki_phaseDuration + find(LgrfMag(ki+(ki_phaseDuration+15):end)>bound, 1) - 1; % Find time until next heel strike
     end
 
     if ki_phaseDuration == 0; error("Phase duration is zero length"); end
@@ -607,6 +633,7 @@ for k = timeWithInput
     uMeas(:,k) = nRb.' * (nStepPosAbsolute(:,stepCounter) - COM(:,k));
 end
 end
+
 
 function Pnew = resetCovariance(x, stateMax, covRange)
 % Method 1: Linearly scaled reset | Pnew = resetCovariance(x, stateMax, covRange)

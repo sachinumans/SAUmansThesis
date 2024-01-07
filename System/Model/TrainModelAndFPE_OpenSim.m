@@ -10,9 +10,12 @@ k = (1:100*25) + 100*1;
 w = [5 5 5];
 
 dt = 0.01;
-bound = 0.3*m*9.81;
+BMthr = 0.3;
+bound = BMthr*m*9.81;
 plotIO = 1;
 debugMode = 0;
+
+tic
 
 %% Extract training data
 LASI = LASI(:, k);
@@ -33,7 +36,7 @@ RgrfMag = RgrfMag(k);
 
 % Translate optical markers to state trajectories
 [xMeas, uMeas] = meas2state(LASI, RASI, SACR, COM, CAC);
-% State:      x(1:2) : CoM velocity in frame B
+% State:      x(1:3) : CoM velocity in frame B
 
 % Determine initial state
 initGRFmagL = norm(LgrfVec(:, 1));
@@ -208,11 +211,11 @@ A_opt = []; b_opt = [];
 Aeq_opt = []; beq_opt = []; % Reset
 % Aeq_opt = [eye(3) -eye(3)]; beq_opt = zeros(3,1); p0 = [p0(1:3)+p0(4:6); p0(1:3)+p0(4:6)]/2; % Symmetric legs 
 % [Aeq_opt,beq_opt] = getEqConstr(pOpt_list,{'Vs_ds_fl','Vs_ds_bl'});
-tic
+% tic
 p_fmc = fmincon(@(p)nonlinObjFunc_splitIntoPhases(pVec(p), xMeas, uMeas, gaitCycle0, k_strike, w, dt),...
     p0, A_opt, b_opt, Aeq_opt, beq_opt, min(pOpt_bounds(pOpt_idx,:), [], 2)', max(pOpt_bounds(pOpt_idx,:), [], 2)', [], ...
     optimoptions('fmincon','UseParallel',true,'PlotFcn',{'optimplotx', 'optimplotfval', 'optimplotfunccount'}));
-toc
+% toc
 pOpt = pVec(p_fmc);
 
 [wxSqError, xModel, xMeas_, bGRF, bL, dbL] = nonlinObjFunc_splitIntoPhases(pVec(p_fmc), xMeas, uMeas, gaitCycle0, k_strike, w, dt);
@@ -409,12 +412,13 @@ end
 
 figure();
 subplot(2,1,1)
-plot(k_strikeL*dt, realStepL(1, :), 'rx'); hold on
-plot(k_strikeR*dt, realStepR(1, :), 'rx')
-plot(k_strikeL*dt, controlledStepL(1,:), 'bx')
-plot(k_strikeR*dt, controlledStepR(1,:), 'bx')
+plot(k_strikeL(2:end)*dt, realStepL(1, 2:end), 'rx', DisplayName="Measured"); hold on
+plot(k_strikeL(2:end)*dt, controlledStepL(1,2:end), 'bx', DisplayName="FPE @ Heel Strike")
+legend(AutoUpdate="off")
+plot(k_strikeR(2:end)*dt, realStepR(1, 2:end), 'rx')
+plot(k_strikeR(2:end)*dt, controlledStepR(1,2:end), 'bx')
 % legend("Measured", "Controller")
-title("Training Step Length")
+title("Step Length Training")
 % xlabel("Timestep")
 ylabel("Meter")
 grid on
@@ -433,15 +437,16 @@ grid on
 subplot(2,1,2)
 errL = vecnorm(controlledStepL - realStepL, 2, 1);
 errR = vecnorm(controlledStepR - realStepR, 2, 1);
-plot(k_strikeL*dt, errL, 'ro', DisplayName="Error given HS time"); hold on
+plot(k_strikeL(2:end)*dt, errL(2:end), 'ro', DisplayName="Error given HS time"); hold on
 legend(AutoUpdate="off")
-plot(k_strikeR*dt, errR, 'ro', DisplayName="Error given HS time");
-yline(mean([errL errR], "omitnan"), 'r--', ['Mean = ' num2str(round(mean([errL errR], "omitnan"), 3))])
-title("Training Absolute Placement Error")
-xlabel("Timestep")
+plot(k_strikeR(2:end)*dt, errR(2:end), 'ro', DisplayName="Error given HS time");
+yline(mean([errL(2:end) errR(2:end)], "omitnan"), 'r--', ['Mean = ' num2str(round(mean([errL(2:end) errR(2:end)], "omitnan"), 3))])
+title("Absolute Placement Error")
+xlabel("Time / s")
 ylabel("Meter")
 grid on
 
+toc
 
 %% Functions
 % For your own sanity, collapse these

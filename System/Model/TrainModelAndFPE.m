@@ -25,6 +25,7 @@ if exist("data","var") ~= 1
     load([pwd '\..\..\human-walking-biomechanics\Level 3 - MATLAB files\Level 3 - MATLAB files\All Strides Data files\p' num2str(subjectNum) '_AllStridesData.mat'])
 end
 
+tic
 w = w./norm(w); % Normalise weights
 
 t = data(TrialNum).Time.TIME(k); % Time series
@@ -241,11 +242,11 @@ A_opt = []; b_opt = [];
 Aeq_opt = []; beq_opt = []; % Reset
 % Aeq_opt = [eye(3) -eye(3)]; beq_opt = zeros(3,1); p0 = [p0(1:3)+p0(4:6); p0(1:3)+p0(4:6)]/2; % Symmetric legs 
 % [Aeq_opt,beq_opt] = getEqConstr(pOpt_list,{'Vs_ds_fl','Vs_ds_bl'});
-tic
+% tic
 p_fmc = fmincon(@(p)nonlinObjFunc_splitIntoPhases(pVec(p), xMeas, uMeas, gaitCycle0, k_strike, w, dt),...
     p0, A_opt, b_opt, Aeq_opt, beq_opt, min(pOpt_bounds(pOpt_idx,:), [], 2)', max(pOpt_bounds(pOpt_idx,:), [], 2)', [], ...
     optimoptions('fmincon','UseParallel',true,'PlotFcn',{'optimplotx', 'optimplotfval', 'optimplotfunccount'}));
-toc
+% toc
 pOpt = pVec(p_fmc);
 
 [wxSqError, xModel, xMeas, bGRF, bL, dbL] = nonlinObjFunc_splitIntoPhases(pVec(p_fmc), xMeas, uMeas, gaitCycle0, k_strike, w, dt);
@@ -471,6 +472,7 @@ xlabel("Timestep")
 ylabel("Meter")
 grid on
 
+toc
 %% Functions
 % For your own sanity, collapse these
 %                   ▕▔╲

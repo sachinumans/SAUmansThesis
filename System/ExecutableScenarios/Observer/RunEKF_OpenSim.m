@@ -3,11 +3,12 @@ mfile_name          = mfilename('fullpath');
 [pathstr,name,ext]  = fileparts(mfile_name);
 cd(pathstr);
 
-clc; clear; close all
+clear;
+clc; close all
 %% Define Observation data
 load OpenSimData.mat
 load modelParams_OpenSim.mat
-k = (1:100*25) + 100*5;
+k = (1:100*25) + 100*1;
 
 dt = 0.01;
 % bound = 0.3*m*9.81;
@@ -29,7 +30,7 @@ varGyr = 1e-4;%1e-5; % Gyroscope noise variance
 
 % Dedrifting
 % DedriftEveryNSteps = 2;
-Ki_x = 5e-2; % Integral correction term for sagittal velocity
+Ki_x = 1e-1; % Integral correction term for sagittal velocity
 Ki_y = 1e-1; % Integral correction term for lateral velocity
 
 
@@ -435,10 +436,10 @@ xlim([tSim(1) tSim(end)])
 sgtitle("Measured and estimated outputs")
 
 figure
-scatter(bFHat(1,k_strike+1),bFHat(3,k_strike+1), 'bo', DisplayName="Estimated feet positions"); hold on
-scatter(uMeas{1}(1,k_strike+1),uMeas{1}(3,k_strike+1), 'rx', DisplayName="Measured feet positions")
+scatter(t(k_strike+1),bFHat(1,k_strike+1), 'bx', DisplayName="Estimated feet positions"); hold on
+scatter(t(k_strike+1),uMeas{1}(1,k_strike+1), 'rx', DisplayName="Measured feet positions")
 xlabel("B_x / m")
-ylabel("B_z / m")
+ylabel("Time / s")
 title("Measured and estimated foot placements")
 legend
 grid on
@@ -510,10 +511,10 @@ while true
     switch gaitCycle(1)
         case {"lSS", "LSS"}
             ki_phaseDuration = find(RgrfMag(ki:end)<bound, 1) - 1; % Find time until toe off
-            ki_phaseDuration = ki_phaseDuration + find(RgrfMag(ki+ki_phaseDuration:end)>bound, 1) - 1; % Find time until next heel strike
+            ki_phaseDuration = ki_phaseDuration + find(RgrfMag(ki+(ki_phaseDuration+15):end)>bound, 1) - 1; % Find time until next heel strike
         case {"rSS", "RSS"}
             ki_phaseDuration = find(LgrfMag(ki:end)<bound, 1) - 1; % Find time until toe off
-            ki_phaseDuration = ki_phaseDuration + find(LgrfMag(ki+ki_phaseDuration:end)>bound, 1) - 1; % Find time until next heel strike
+            ki_phaseDuration = ki_phaseDuration + find(LgrfMag(ki+(ki_phaseDuration+15):end)>bound, 1) - 1; % Find time until next heel strike
     end
 
     if ki_phaseDuration == 0; error("Phase duration is zero length"); end

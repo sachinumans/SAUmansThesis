@@ -18,7 +18,7 @@ load modelParams.mat
 % Define perturbation as measurement offset
 % yPush = [-5; 5; -9.81;0;0;0];
 yPush = [0; 0; 0;0;0;0];
-PerturbAfterNSteps = 40;
+PerturbAfterNSteps = 90;
 
 %% Define Observation data
 TrialNum = 11;
@@ -498,6 +498,14 @@ title("Inputs and XCoM")
 legend()
 sgtitle("Measured and estimated inputs and outputs")
 
+figure
+hold on
+plot(polyshape(BoS(1,:),BoS(2,:)), DisplayName="BoS", FaceColor=[.2 1 .2], FaceAlpha=0.2)
+plot(XcoM(1,:),XcoM(2,:), Color=[0 0 1 0.1], DisplayName="XcoM")
+xlabel("B_x / m")
+ylabel("B_y / m")
+title("XCoM and BoS")
+legend()
 %% Functions
 
 function P = forceRealPosDef(P)
