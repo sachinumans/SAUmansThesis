@@ -29,9 +29,13 @@ uVar = [u1; u2; u3; u4];
 
 for phase = {'LSS', 'RDS', 'RSS', 'LDS'}
     % Dynamics
-    dx = EoM_model(0, x, u, phase{1}, pOpt);
-    dx = simplify(dx);
-    xp = x + dt*dx;
+    dx = EoM_model(0, x, u, phase{1}, pOpt); % CoM acc in B
+    nRb = quat2R(u2); % Rotation matrix from B to N
+    Nx = nRb*x; % CoM vel in N
+    Ndx = nRb*dx; % CoM acc in B
+    Ndx = simplify(Ndx);
+    Nxp = Nx + dt*Ndx; % Forward Euler discretisation in N
+    xp = nRb.'*Nxp; % Next CoM vel in B
     % Measurements
     y = meas_model(0, x, u, bS, phase{1}, pOpt);
     y = simplify(y);
