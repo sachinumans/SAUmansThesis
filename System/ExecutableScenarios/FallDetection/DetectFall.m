@@ -28,8 +28,8 @@ plotIO = 1; % Plot data?
 debugMode = true;
 
 % EKF tuning parameters: Uncertainty matrices
-Qekf = eye(3) * 1e-1;
-Rekf = eye(6) * 1e-4; %blkdiag(eye(3).*varAcc, eye(3).*varGyr);
+Qekf = eye(3) * 1e-3;
+Rekf = eye(6) * 1e-3; %blkdiag(eye(3).*varAcc, eye(3).*varGyr);
 
 P0 = 1e-2*eye(3);
 
@@ -41,7 +41,7 @@ varGyr = 1e-2;%1e-5; % Gyroscope noise variance
 
 % Dedrifting
 % DedriftEveryNSteps = 2;
-Ki_x = 1e-1; % Integral correction term for sagittal velocity
+Ki_x = 5e-2; % Integral correction term for sagittal velocity
 Ki_y = 1e-3; % Integral correction term for lateral velocity
 
 
@@ -351,7 +351,8 @@ for idx = k_strike(1):length(xMeas)-1
     xHat(2, idx+1) = xHat(2, idx+1) - Ki_y*yVelIntegral;
 
     %%% Evaluate balance
-    XcoM(:,idx) = xMeas(:,idx)./om0;
+%     XcoM(:,idx) = xMeas(:,idx)./om0;
+    XcoM(:,idx) = xHat(:,idx)./om0;
     XcoM(3,idx) = 0;
     for i = 1:length(BoS)-1
         b = cross(BoS(:,i+1) - BoS(:,i), XcoM(:,idx) - BoS(:,i)) ./norm(BoS(:,i+1) - BoS(:,i));
@@ -502,7 +503,7 @@ sgtitle("Measured and estimated inputs and outputs")
 figure
 hold on
 plot(polyshape(BoS(1,:),BoS(2,:)), DisplayName="BoS", FaceColor=[.2 1 .2], FaceAlpha=0.2)
-plot(XcoM(1,:),XcoM(2,:), Color=[0 0 1 0.3], DisplayName="XcoM")
+plot(XcoM(1,2400:end),XcoM(2,2400:end), Color=[0 0 1], DisplayName="XcoM")
 xlabel("B_x / m")
 ylabel("B_y / m")
 title("XCoM and BoS")

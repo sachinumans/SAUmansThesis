@@ -251,6 +251,14 @@ for idx = k_strike(1):length(xMeas)-1
             error("Unknown phase")
     end
 
+    [Abar,Bbar,Cbar,T,k] = obsvf(F_x, zeros(3, 15), H_x);
+    ra = rank(obsv(F_x, H_x));
+    unobsEig = eig(Abar(1:end-ra,1:end-ra));
+    if any(unobsEig- 1 > 1e-14)
+        warning("Really undetectable")
+    end
+
+
     % Estimated output
     ukCell = {bFHat(:,idx), qHat(:,idx), dqHat(:,idx), ddqHat(:,idx)};
     yHat(:,idx) = meas_model(k_thisStep, xHat(:,idx), ukCell, bS, gaitCycle(1), pOpt);

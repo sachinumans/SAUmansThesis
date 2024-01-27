@@ -8,7 +8,7 @@ clc; close all
 %% Define Observation data
 load OpenSimData.mat
 load modelParams_OpenSim.mat
-k = (1:100*25) + 100*26;
+k = (1:100*40) + 100*26;
 
 dt = 0.01;
 % bound = 0.3*m*9.81;
@@ -30,7 +30,7 @@ varGyr = 1e-4;%1e-5; % Gyroscope noise variance
 
 % Dedrifting
 % DedriftEveryNSteps = 2;
-Ki_x = 1e-1; % Integral correction term for sagittal velocity
+Ki_x = 8e-2; % Integral correction term for sagittal velocity
 Ki_y = 1e-1; % Integral correction term for lateral velocity
 
 
@@ -459,17 +459,17 @@ legend
 grid on
 
 %%
-RMSE_States = rmse(xMeas, xHat)
-VAF_States = vaf(xMeas, xHat)
+RMSE_States = rmse(xMeas(:,1500:end), xHat(:,1500:end))
+VAF_States = vaf(xMeas(:,1500:end), xHat(:,1500:end))
 
-RMSE_q = rmse(uMeas{2}, qHat)
-VAF_q = vaf(uMeas{2}, qHat)
+RMSE_q = rmse(uMeas{2}(:,1500:end), qHat(:,1500:end))
+VAF_q = vaf(uMeas{2}(:,1500:end), qHat(:,1500:end))
 
-RMSE_dq = rmse(uMeas{3}, dqHat)
-VAF_dq = vaf(uMeas{3}, dqHat)
+RMSE_dq = rmse(uMeas{3}(:,1500:end), dqHat(:,1500:end))
+VAF_dq = vaf(uMeas{3}(:,1500:end), dqHat(:,1500:end))
 
-RMSE_ddq = rmse(uMeas{4}, ddqHat)
-VAF_ddq = vaf(uMeas{4}, ddqHat)
+RMSE_ddq = rmse(uMeas{4}(:,1500:end), ddqHat(:,1500:end))
+VAF_ddq = vaf(uMeas{4}(:,1500:end), ddqHat(:,1500:end))
 
 %% Animate
 % animate_strides_V2(t, xHat, gaitCycle0, k_gaitPhaseChange, u, modelParams)

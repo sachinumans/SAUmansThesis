@@ -31,7 +31,7 @@ varGyr = 1e-4;%1e-5; % Gyroscope noise variance
 
 % Dedrifting
 % DedriftEveryNSteps = 2;
-Ki_x = 1e-1; % Integral correction term for sagittal velocity
+Ki_x = 8e-2; % Integral correction term for sagittal velocity
 Ki_y = 1e-1; % Integral correction term for lateral velocity
 
 

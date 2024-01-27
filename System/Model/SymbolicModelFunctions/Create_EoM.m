@@ -5,13 +5,15 @@ cd(pathstr);
 clear all; close all; clc
 %%
 load modelParams.mat
-% Equations of Motion in state space form for the human walking model
-%     t [1] Time since last heel strike
-%     x [11 1] State
-%     u {[3 1], [4 1], [4 1], [4 1]} Inputs, Foot position in body fixed
-%       frame, orientation quaternion, 1st quaternion derivative, 2nd quaternion derivative
-%     phase in {"LSS", "RDS", "RSS", "LDS"}
-%     pars [7] Model parameters
+% pOpt(1) = 74.5; % For OpenSim
+% dt = 0.01; % For OpenSim
+
+% % Equations of Motion in state space form for the human walking model
+% %     t [1] Time since last heel strike
+% %     x [11 1] State
+% %     u {[3 1], [4 1], [4 1], [4 1]} Inputs, Foot position in body fixed
+% %       frame, orientation quaternion, 1st quaternion derivative, 2nd quaternion derivative
+% %     phase in {"LSS", "RDS", "RSS", "LDS"}
 
 syms x [3 1] real % CoM veclocity
 syms u1 [3 1] real % Foot position
