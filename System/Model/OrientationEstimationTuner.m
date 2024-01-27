@@ -15,7 +15,7 @@ end
 
 %% Define Observation data
 TrialNum = 11;
-k = (1:(120*20))+120*10; % Observation data
+k = (1:(120*15))+120*9.4; % Observation data
 
 BMthr = 0.2; % Fraction of bodyweight that forms the threshold whether or not a foot is carrying weight
 plotIO = 1; % Plot data?
@@ -24,7 +24,7 @@ debugMode = true;
 dt = 1/120; % Timestep
 
 % Define IMU position
-sens_hRatio = 0.2;
+sens_hRatio = 0.1;
 
 varAcc = 0; % Accelerometer noise variance
 varGyr = 1e-2; % Gyroscope noise variance
@@ -109,14 +109,17 @@ xHat(1:3,:) = xMeas(1:3,:);
 
 if plotIO
     figure();
-    subtitle = ["Gyr x" "Gyr y" "Gyr z" ];
+    subtitle = ["x component" "y component" "z component" ];
     for p = 1:3
         subplot(3, 1, p)
-        plot(t, y(p+3, :)', 'r', DisplayName="Noisy gyr"); hold on
-        plot(t, yClean(p+3, :)', 'b', DisplayName="Gyr")
+        plot(t - t(1), y(p+3, :)', 'r', DisplayName="Noisy gyr"); hold on
+        plot(t - t(1), yClean(p+3, :)', 'b', DisplayName="Gyr")
+        ylabel("Ang.vel. / (m/s)")
         title(subtitle(p))
     end
+    xlabel("Time / s")
     legend()
+    sgtitle("Gyroscope measurements - Noise level")
     drawnow
 end
 
@@ -185,7 +188,7 @@ ylabel('|P1(f)|')
 % title(['q_' num2str(q)])
 end
 
-xlim([0.2 3])
+xlim([0.09 11])
 % linkaxes(ax); clearvars ax
 title('Single-Sided Amplitude Spectrum of quaternion elements')
 legend
@@ -204,30 +207,59 @@ figure(WindowState="maximized");
 ctr = 1;
 for i = 1:4
     ax(ctr) = subplot(4, 3, ctr); ctr = ctr+1;
-    plot(t, uMeas{2}(i, :), 'r', DisplayName="Measurement"); hold on
-    plot(t(2:end-1), qHat(i, :), 'b', DisplayName="Estimate")
+    plot(t - t(1), uMeas{2}(i, :), 'r', DisplayName="Measurement"); hold on
+    plot(t(2:end-1) - t(1), qHat(i, :), 'b', DisplayName="Estimate")
     title(['q_' num2str(i)])
 
     ax(ctr) = subplot(4, 3, ctr); ctr = ctr+1;
-    plot(t, uMeas{3}(i, :), 'r', DisplayName="Measurement"); hold on
-    plot(t(2:end-1), dqHat(i, :), 'b', DisplayName="Estimate")
+    plot(t - t(1), uMeas{3}(i, :), 'r', DisplayName="Measurement"); hold on
+    plot(t(2:end-1) - t(1), dqHat(i, :), 'b', DisplayName="Estimate")
     title(['dq_' num2str(i)])
 
     ax(ctr) = subplot(4, 3, ctr); ctr = ctr+1;
-    plot(t, uMeas{4}(i, :), 'r', DisplayName="Measurement"); hold on
-    plot(t(2:end-1), ddqHat(i, :), 'b', DisplayName="Estimate")
+    plot(t - t(1), uMeas{4}(i, :), 'r', DisplayName="Measurement"); hold on
+    plot(t(2:end-1) - t(1), ddqHat(i, :), 'b', DisplayName="Estimate")
     title(['ddq_' num2str(i)])
 end
-legend()
+j = 1;
+for i = 1:3:12
+subplot(4,3,i); ylabel(['Element ' num2str(j,1)])
+j=j+1;
+end
+j = 1;
+for i = 2:3:12
+subplot(4,3,i); ylabel("1/s")
+j=j+1;
+end
+j = 1;
+for i = 3:3:12
+subplot(4,3,i); ylabel("1/s^2")
+j=j+1;
+end
+subplot(4,3,10); xlabel("Orientation")
+subplot(4,3,11); xlabel("Angular velocity / (1/s)")
+subplot(4,3,12); xlabel("Angular acceleration / (1/s^2)")
+
+% legend()
 
 % ax(3) = subplot(2, 1, 3);
 % plot(t,  yHat(3, :), 'b', DisplayName="Estimate"); hold on
 % plot(t(2:end-1), ddqMeas, 'r', DisplayName="Measurement")
 % title("Angular orientation")
 % legend()
-sgtitle("Orientation Estimation")
+sgtitle("Orientation Estimation - Training")
 linkaxes(ax, 'x')
 axis("tight")
+
+%%
+RMSE_q = rmse(uMeas{2}(:,2:end-1), qHat)
+VAF_q = vaf(uMeas{2}(:,2:end-1), qHat)
+
+RMSE_dq = rmse(uMeas{3}(:,2:end-1), dqHat)
+VAF_dq = vaf(uMeas{3}(:,2:end-1), dqHat)
+
+RMSE_ddq = rmse(uMeas{4}(:,2:end-1), ddqHat)
+VAF_ddq = vaf(uMeas{4}(:,2:end-1), ddqHat)
 
 %% Store Values
 % clearvars -except sinGenSysQ uSteady RoscilQ QoscilQ SoscilQ sinGenSysDQ RoscilDQ QoscilDQ SoscilDQ

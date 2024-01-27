@@ -361,11 +361,12 @@ end
 %% Plot for the thesis
 gaitCycle = gaitCycle0
 % State trajectory
-tMeas = (1:length(xMeas) )*dt;
+tMeas = (0:length(xMeas)-1 )*dt;
 % tModel = (1:length(xModel))*dt;
-tModel = tMeas(k_strike(1):end);
+tModel = tMeas(k_strike(1):end) - tMeas(k_strike(1));
 
-f = figure(WindowState="maximized");
+% f = figure(WindowState="maximized");
+f = figure();
 i = 1;
 for k = k_strike
     xline(tMeas(k), 'k', gaitCycle(1))
@@ -374,22 +375,23 @@ end
 ylim([-0.1 0.1])
 
 ax(i) = subplot(3,1,1); i=i+1;
-         plot(tMeas , xMeas (1,:), 'r--' , DisplayName="Meas - $\dot{x}$" ); hold on
-plotIntervals(tMeas , xModel(1,:), 'b--' ,             "Model - $\dot{x}$", k_strike)
-plot(nan, 'b--', DisplayName="Model - $\dot{x}$")
-legend(Interpreter="latex")
-title("CoM velocity")
+         plot(tMeas , xMeas (1,:), 'r' , DisplayName="Meas - $\dot{x}$" ); hold on
+plotIntervals(tMeas , xModel(1,:), 'b' ,             "Model - $\dot{x}$", k_strike)
+plot(nan, 'b', DisplayName="Model - $\dot{x}$")
+% legend(Interpreter="latex")
+title("B_x direction")
 ylabel("Velocity / (m/s)")
 % ylim([-0.5 2])
 grid on
 
 ax(i) = subplot(3,1,2); i=i+1;
-         plot(tMeas , xMeas (2,:), 'r-.'  , DisplayName="Meas - $\dot{y}$" ); hold on
-plotIntervals(tMeas , xModel(2,:), 'b-.'  ,             "Model - $\dot{y}$", k_strike)
-plot(nan, 'b-.' , DisplayName="Model - $\dot{y}$")
-legend(Interpreter="latex")
-xlabel("Time / s")
+         plot(tMeas , xMeas (2,:), 'r'  , DisplayName="Meas - $\dot{y}$" ); hold on
+plotIntervals(tMeas , xModel(2,:), 'b'  ,             "Model - $\dot{y}$", k_strike)
+plot(nan, 'b' , DisplayName="Model - $\dot{y}$")
+% legend(Interpreter="latex")
+% xlabel("Time / s")
 ylabel("Velocity / (m/s)")
+title("B_y direction")
 % ylim([-0.5 2])
 grid on
 
@@ -397,22 +399,26 @@ ax(i) = subplot(3,1,3); i=i+1;
          plot(tMeas , xMeas (3,:), 'r'   , DisplayName="Meas - $\dot{z}$" ); hold on
 plotIntervals(tMeas , xModel(3,:), 'b'   ,             "Model - $\dot{z}$", k_strike)
 plot(nan, 'b'  , DisplayName="Model - $\dot{z}$")
-legend(Interpreter="latex")
+% legend(Interpreter="latex")
 xlabel("Time / s")
 ylabel("Velocity / (m/s)")
+title("B_z direction")
 % ylim([-0.5 2])
 grid on
 
-sgtitle("Training Model Fit per Phase")
+sgtitle("Model Training Fit - CoM velocity")
 
 linkaxes(ax, 'x')
+
+RMSE_States = rmse(xMeas, xModel)
+VAF_States = vaf(xMeas, xModel)
 
 % GRF magnitudes
 t = (1:length(bGRF))*dt;
 figure()
-plot(t, LgrfMag(3:end-2), DisplayName="Left"); hold on
-plot(t, RgrfMag(3:end-2), DisplayName="Right")
-plot(t, vecnorm(bGRF, 2, 1), DisplayName="Model GRF")
+plot(t, LgrfMag(3:end-2), DisplayName="Meas - Left"); hold on
+plot(t, RgrfMag(3:end-2), DisplayName="Meas - Right")
+plot(t, vecnorm(bGRF, 2, 1), Color='#7E2F8E', DisplayName="Model GRF")
 title("Training GRF magnitude")
 xlabel("Time / s")
 ylabel("GRF magnitude / N")
@@ -446,29 +452,29 @@ plot(k_strikeR*dt, controlledStepR(1,:), 'bx')
 % legend("Measured", "Controller")
 title("Training Step Length")
 % xlabel("Timestep")
-ylabel("Meter")
+ylabel("B_x / m")
 grid on
 
 subplot(3,1,2)
 plot(k_strikeL*dt, realStepL(2, :), 'rx', DisplayName="Measured"); hold on
-plot(k_strikeL*dt, controlledStepL(2,:), 'bx', DisplayName="FPE @ Heel Strike")
+plot(k_strikeL*dt, controlledStepL(2,:), 'bx', DisplayName="FPE")
 legend(AutoUpdate="off")
 plot(k_strikeR*dt, realStepR(2, :), 'rx', DisplayName="Measured"); hold on
 plot(k_strikeR*dt, controlledStepR(2,:), 'bx', DisplayName="FPE @ Heel Strike")
 title("Training Step Width")
 % xlabel("Timestep")
-ylabel("Meter")
+ylabel("B_y / m")
 grid on
 
 subplot(3,1,3)
 errL = vecnorm(controlledStepL - realStepL, 2, 1);
 errR = vecnorm(controlledStepR - realStepR, 2, 1);
-plot(k_strikeL*dt, errL, 'ro', DisplayName="Error given HS time"); hold on
+plot(k_strikeL*dt, errL, '.', Color='#7E2F8E', DisplayName="Error", MarkerSize=12); hold on
 legend(AutoUpdate="off")
-plot(k_strikeR*dt, errR, 'ro', DisplayName="Error given HS time");
-yline(mean([errL errR], "omitnan"), 'r--', ['Mean = ' num2str(round(mean([errL errR], "omitnan"), 3))])
+plot(k_strikeR*dt, errR, '.', Color='#7E2F8E', DisplayName="Error given HS time", MarkerSize=12);
+yline(mean([errL errR], "omitnan"), '--', ['Mean = ' num2str(round(mean([errL errR], "omitnan"), 3))], Color='#7E2F8E')
 title("Training Absolute Placement Error")
-xlabel("Timestep")
+xlabel("Time / s")
 ylabel("Meter")
 grid on
 
@@ -925,12 +931,12 @@ linkaxes(ax, 'x')
 end
 
 function plotIntervals(t, x, ls, dn, k_strike)
-legend(AutoUpdate="off")
+% legend(AutoUpdate="off")
 for counterInterval = 1:length(k_strike)-1
     idxInterval = k_strike(counterInterval):k_strike(counterInterval+1)-1;
     plot(t(idxInterval), x(idxInterval), ls, DisplayName=dn); hold on
 end
-legend(AutoUpdate="on")
+% legend(AutoUpdate="on")
 end
 
 function [f] = plotModelOverMeas_forces(f, bGRF, bL, dbL, uMeas, l0_lss, K_lss, b_lss, l0_rss, K_rss, b_rss, k_strike, bound, dt)

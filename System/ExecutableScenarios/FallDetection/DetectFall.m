@@ -36,8 +36,8 @@ P0 = 1e-2*eye(3);
 % Define IMU position
 sens_hRatio = 0.1; % ratio from 0 = CoM height to 1 = between shoulders
 
-varAcc = 1e-4; % Accelerometer noise variance
-varGyr = 1e-4;%1e-5; % Gyroscope noise variance
+varAcc = 1e-3; % Accelerometer noise variance
+varGyr = 1e-2;%1e-5; % Gyroscope noise variance
 
 % Dedrifting
 % DedriftEveryNSteps = 2;
@@ -351,7 +351,7 @@ for idx = k_strike(1):length(xMeas)-1
     xHat(2, idx+1) = xHat(2, idx+1) - Ki_y*yVelIntegral;
 
     %%% Evaluate balance
-    XcoM(:,idx) = xHat(:,idx)./om0;
+    XcoM(:,idx) = xMeas(:,idx)./om0;
     XcoM(3,idx) = 0;
     for i = 1:length(BoS)-1
         b = cross(BoS(:,i+1) - BoS(:,i), XcoM(:,idx) - BoS(:,i)) ./norm(BoS(:,i+1) - BoS(:,i));
@@ -498,10 +498,11 @@ title("Inputs and XCoM")
 legend()
 sgtitle("Measured and estimated inputs and outputs")
 
+%%
 figure
 hold on
 plot(polyshape(BoS(1,:),BoS(2,:)), DisplayName="BoS", FaceColor=[.2 1 .2], FaceAlpha=0.2)
-plot(XcoM(1,:),XcoM(2,:), Color=[0 0 1 0.1], DisplayName="XcoM")
+plot(XcoM(1,:),XcoM(2,:), Color=[0 0 1 0.3], DisplayName="XcoM")
 xlabel("B_x / m")
 ylabel("B_y / m")
 title("XCoM and BoS")

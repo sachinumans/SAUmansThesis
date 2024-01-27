@@ -24,15 +24,15 @@ debugMode = true;
 
 % EKF tuning parameters: Uncertainty matrices
 Qekf = eye(3) * 1e-3;
-Rekf = eye(6) * 1e-4; %blkdiag(eye(3).*varAcc, eye(3).*varGyr);
+Rekf = eye(6) * 1e-3; %blkdiag(eye(3).*varAcc, eye(3).*varGyr);
 
 P0 = 1e-2*eye(3);
 
 % Define IMU position
 sens_hRatio = 0.1; % ratio from 0 = CoM height to 1 = between shoulders
 
-varAcc = 1e-4; % Accelerometer noise variance
-varGyr = 1e-4;%1e-5; % Gyroscope noise variance
+varAcc = 1e-3; % Accelerometer noise variance
+varGyr = 1e-2;%1e-5; % Gyroscope noise variance
 
 % Dedrifting
 % DedriftEveryNSteps = 2;
@@ -348,26 +348,27 @@ runTime = toc
 realtimefactor = runTime/(t(end)-t(1))
 
 %% Plot
-tSim = t(1:idx);
+tSim = t(1:idx) - t(1);
 
-figure(WindowState="maximized")
+figure()
 counter = 1;
 
 ax(counter) = subplot(3,1,1); counter = counter+1;
-plot(tSim, xMeas(1,1:idx), 'r--','DisplayName',"Meas - $\dot{x}$")
+plot(tSim, xMeas(1,1:idx), 'r','DisplayName',"Meas - $\dot{x}$")
 hold on
-plot(tSim, xHat(1,1:idx), 'b--','DisplayName',"Obs - $\dot{\hat{x}}$")
-title("CoM velocity")
-legend('AutoUpdate', 'off','Interpreter','latex')
-xline(t(khat_strike), 'k')
+plot(tSim, xHat(1,1:idx), 'b','DisplayName',"Obs - $\dot{\hat{x}}$")
+title("B_x direction")
+% legend('AutoUpdate', 'off','Interpreter','latex')
+xline(t(khat_strike) - t(1), 'k')
 ylabel("Velocity / (m/s)")
 
 ax(counter) = subplot(3,1,2); counter = counter+1;
-plot(tSim, xMeas(2,1:idx), 'r-.','DisplayName',"Meas - $\dot{y}$")
+plot(tSim, xMeas(2,1:idx), 'r','DisplayName',"Meas - $\dot{y}$")
 hold on
-plot(tSim, xHat(2,1:idx)', 'b-.','DisplayName',"Obs - $\dot{\hat{y}}$")
-legend('AutoUpdate', 'off','Interpreter','latex')
-xline(t(khat_strike), 'k')
+plot(tSim, xHat(2,1:idx)', 'b','DisplayName',"Obs - $\dot{\hat{y}}$")
+% legend('AutoUpdate', 'off','Interpreter','latex')
+xline(t(khat_strike) - t(1), 'k')
+title("B_y direction")
 if UsePhaseChangeDetection
     xline(t(k_strike(1) + 15*120), 'c--', LineWidth=2, Label="Start of PCD")
 end
@@ -379,42 +380,70 @@ hold on
 plot(tSim, xHat(3,1:idx), 'b','DisplayName',"Obs - $\dot{\hat{z}}$")
 xlabel("Time / s")
 ylabel("Velocity / (m/s)")
-legend('AutoUpdate', 'off','Interpreter','latex')
-xline(t(khat_strike), 'k')
+title("B_z direction")
+% legend('AutoUpdate', 'off','Interpreter','latex')
+xline(t(khat_strike) - t(1), 'k')
 % ylim([-0.5 1.5])
 
-sgtitle("Estimated states")
+sgtitle("Estimated states - Verification")
+linkaxes(ax,'x')
+clearvars ax
 
 figure(WindowState="maximized");
 ctr = 1;
 for i = 1:4
-    ax(counter) = subplot(4, 3, ctr); ctr = ctr+1; counter = counter+1;
-    plot(t, uMeas{2}(i, :), 'r', DisplayName="Measurement"); hold on
-    plot(t, qHat(i, :), 'b', DisplayName="Estimate")
+    ax(ctr) = subplot(4, 3, ctr); ctr = ctr+1;
+    plot(tSim, uMeas{2}(i, 1:end-1), 'r', DisplayName="Measurement"); hold on
+    plot(tSim, qHat(i, 1:end-1), 'b', DisplayName="Estimate")
     title(['q_' num2str(i)])
 
-    ax(counter) = subplot(4, 3, ctr); ctr = ctr+1; counter = counter+1;
-    plot(t, uMeas{3}(i, :), 'r', DisplayName="Measurement"); hold on
-    plot(t, dqHat(i, :), 'b', DisplayName="Estimate")
+    ax(ctr) = subplot(4, 3, ctr); ctr = ctr+1;
+    plot(tSim, uMeas{3}(i, 1:end-1), 'r', DisplayName="Measurement"); hold on
+    plot(tSim, dqHat(i, 1:end-1), 'b', DisplayName="Estimate")
     title(['dq_' num2str(i)])
 
-    ax(counter) = subplot(4, 3, ctr); ctr = ctr+1; counter = counter+1;
-    plot(t, uMeas{4}(i, :), 'r', DisplayName="Measurement"); hold on
-    plot(t, ddqHat(i, :), 'b', DisplayName="Estimate")
+    ax(ctr) = subplot(4, 3, ctr); ctr = ctr+1;
+    plot(tSim, uMeas{4}(i, 1:end-1), 'r', DisplayName="Measurement"); hold on
+    plot(tSim, ddqHat(i, 1:end-1), 'b', DisplayName="Estimate")
     title(['ddq_' num2str(i)])
 end
-legend()
+j = 1;
+for i = 1:3:12
+subplot(4,3,i); ylabel(['Element ' num2str(j,1)])
+j=j+1;
+end
+j = 1;
+for i = 2:3:12
+subplot(4,3,i); ylabel("1/s")
+j=j+1;
+end
+j = 1;
+for i = 3:3:12
+subplot(4,3,i); ylabel("1/s^2")
+j=j+1;
+end
+subplot(4,3,10); xlabel("Orientation")
+subplot(4,3,11); xlabel("Angular velocity / (1/s)")
+subplot(4,3,12); xlabel("Angular acceleration / (1/s^2)")
 
-linkaxes(ax, 'x');
-sgtitle("Estimated orientation")
+% legend()
+
+% ax(3) = subplot(2, 1, 3);
+% plot(t,  yHat(3, :), 'b', DisplayName="Estimate"); hold on
+% plot(t(2:end-1), ddqMeas, 'r', DisplayName="Measurement")
+% title("Angular orientation")
+% legend()
+sgtitle("Orientation Estimation")
+linkaxes(ax, 'x')
+axis("tight")
 
 figure()
 counter = 1;
 ax(counter) = subplot(2,2,1); counter = counter+1;
 hold on
-plot(t, y(1, :), 'b', DisplayName="$a_x$")
-plot(t, y(2, :), 'r', DisplayName="$a_y$")
-plot(t, y(3, :), Color='#EDB120', DisplayName="$a_z$")
+plot(t-t(1), y(1, :), 'b', DisplayName="$a_x$")
+plot(t-t(1), y(2, :), 'r', DisplayName="$a_y$")
+plot(t-t(1), y(3, :), Color='#EDB120', DisplayName="$a_z$")
 title("Measured output")
 % xlabel("Time / s")
 ylabel("Acceleration / (m/s^2)")
@@ -423,9 +452,9 @@ legend("Interpreter","latex")
 
 ax(counter) = subplot(2,2,2); counter = counter+1;
 hold on
-plot(t, yHat(1, :), 'b', DisplayName="$\hat a_{x}$")
-plot(t, yHat(2, :), 'r', DisplayName="$\hat a_{y}$")
-plot(t, yHat(3, :), Color='#EDB120', DisplayName="$\hat a_{z}$")
+plot(t-t(1), yHat(1, :), 'b', DisplayName="$\hat a_{x}$")
+plot(t-t(1), yHat(2, :), 'r', DisplayName="$\hat a_{y}$")
+plot(t-t(1), yHat(3, :), Color='#EDB120', DisplayName="$\hat a_{z}$")
 title("Estimated output")
 % xlabel("Time / s")
 % ylabel("Acceleration / (m/s^2)")
@@ -434,9 +463,9 @@ legend("Interpreter","latex")
 
 ax(counter) = subplot(2,2,3); counter = counter+1;
 hold on
-plot(t, y(4, :), 'b', DisplayName="$\dot\theta_x$")
-plot(t, y(5, :), 'r', DisplayName="$\dot\theta_y$")
-plot(t, y(6, :), Color='#EDB120', DisplayName="$\dot\theta_z$")
+plot(t-t(1), y(4, :), 'b', DisplayName="$\dot\theta_x$")
+plot(t-t(1), y(5, :), 'r', DisplayName="$\dot\theta_y$")
+plot(t-t(1), y(6, :), Color='#EDB120', DisplayName="$\dot\theta_z$")
 xlabel("Time / s")
 ylabel("Angular velocity / (rad/s)")
 grid on
@@ -444,9 +473,9 @@ legend("Interpreter","latex")
 
 ax(counter) = subplot(2,2,4); counter = counter+1;
 hold on
-plot(t, yHat(4, :), 'b', DisplayName="$\hat{\dot\theta}_{x}$")
-plot(t, yHat(5, :), 'r', DisplayName="$\hat{\dot\theta}_{y}$")
-plot(t, yHat(6, :), Color='#EDB120', DisplayName="$\hat{\dot\theta}_{z}$")
+plot(t-t(1), yHat(4, :), 'b', DisplayName="$\hat{\dot\theta}_{x}$")
+plot(t-t(1), yHat(5, :), 'r', DisplayName="$\hat{\dot\theta}_{y}$")
+plot(t-t(1), yHat(6, :), Color='#EDB120', DisplayName="$\hat{\dot\theta}_{z}$")
 xlabel("Time / s")
 % ylabel("Angular velocity / (rad/s)")
 grid on
@@ -469,13 +498,27 @@ xlim([tSim(1) tSim(end)])
 sgtitle("Measured and estimated outputs")
 
 figure
-scatter(bFHat(1,k_strike+1),bFHat(2,k_strike+1), 'bo', DisplayName="Estimated feet positions"); hold on
-scatter(uMeas{1}(1,k_strike+1),uMeas{1}(2,k_strike+1), 'rx', DisplayName="Measured feet positions")
+scatter(bFHat(1,k_strike(1:2:end)+1),bFHat(2,k_strike(1:2:end)+1), 'o', Color='#008080', DisplayName="Estimate - right"); hold on
+scatter(bFHat(1,k_strike(2:2:end)+1),bFHat(2,k_strike(2:2:end)+1), 'o', Color='#808000', DisplayName="Estimate - left"); hold on
+scatter(uMeas{1}(1,k_strike+1),uMeas{1}(2,k_strike+1), 'rx', DisplayName="Measured")
 xlabel("B_x / m")
 ylabel("B_y / m")
 title("Measured and estimated foot placements")
 legend
 grid on
+
+%%
+RMSE_States = rmse(xMeas, xHat)
+VAF_States = vaf(xMeas, xHat)
+
+RMSE_q = rmse(uMeas{2}, qHat)
+VAF_q = vaf(uMeas{2}, qHat)
+
+RMSE_dq = rmse(uMeas{3}, dqHat)
+VAF_dq = vaf(uMeas{3}, dqHat)
+
+RMSE_ddq = rmse(uMeas{4}, ddqHat)
+VAF_ddq = vaf(uMeas{4}, ddqHat)
 
 %% Animate
 % animate_strides_V2(t, xHat, gaitCycle0, k_gaitPhaseChange, u, modelParams)
